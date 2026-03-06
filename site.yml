@@ -15,6 +15,19 @@
     - vault.yml       # Encrypted: vcenter_username, vcenter_password
 
   tasks:
+    # --------------------------------------------------------
+    # PHASE 0: Create Installation Dir 
+    # --------------------------------------------------------
+    - name: "Create VM Folder if not exists"
+      community.vmware.vcenter_folder:
+      hostname: "{{ vcenter_hostname }}"
+      username: "{{ vcenter_username }}"
+      password: "{{ vcenter_password }}"
+      validate_certs: "{{ vcenter_validate_certs }}"
+      datacenter: "{{ vcenter_datacenter }}"
+      folder_name: "NBE-OCP"
+      folder_type: vm
+      state: present
 
     # --------------------------------------------------------
     # PHASE 1: Create all VMs
