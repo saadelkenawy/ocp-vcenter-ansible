@@ -166,17 +166,17 @@
         ansible_user: root
         ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
 
-    - name: "Configure Bastion Server"
-      hosts: bastion
-      gather_facts: true
+- name: "Configure Bastion Server"
+  hosts: bastion
+  gather_facts: true
 
-      vars_files:
-        - vars.yml
-        - vault.yml
+  vars_files:
+    - vars.yml
+    - vault.yml
 
-      tasks:
-        - name: "Run Bastion configuration tasks"
-          ansible.builtin.include_tasks: tasks/configure_bastion.yml
+  tasks:
+    - name: "Run Bastion configuration tasks"
+      ansible.builtin.include_tasks: tasks/configure_bastion.yml
     
     # --------------------------------------------------------
     # PHASE 7: Summary
