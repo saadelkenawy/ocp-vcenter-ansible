@@ -43,7 +43,7 @@
         unit_number: 0
         state: present
         type: iso
-        iso_path: "[{{ iso_datastore }}] {{ iso_path }}"
+        iso_path: "[{{ iso_datastore }}] {{ item.iso }}"
   register: vm_creation_result
 
 - name: "Show result for {{ current_vm_name }}"
