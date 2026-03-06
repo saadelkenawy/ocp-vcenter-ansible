@@ -44,23 +44,6 @@
         state: present
         type: iso
         iso_path: "[{{ iso_datastore }}] {{ iso_path }}"
-    customvalues: >-
-      - key: "disk.EnableUUID"
-        value: "TRUE"
-      - key: "tools.syncTime"
-        value: "FALSE"
-      - key: "mem.hotadd"
-        value: "FALSE"
-      - key: "cpu.hotadd"
-        value: "FALSE"
-      - key: "hpet0.present"
-        value: "FALSE"
-      - key: "ethernet0.wakeOnLanEnabled"
-        value: "FALSE"
-      - key: "guestinfo.ignition.config.data.encoding"
-        value: "base64"
-      - key:  "stealclock.enable"
-        value: "TRUE"
   register: vm_creation_result
 
 - name: "Show result for {{ current_vm_name }}"
