@@ -35,7 +35,7 @@ vms:
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
-    hardware_version: "vmx-20"
+    hardware_version: "20"
   - role: "Master"
     index: 2
     num_cpus: 8
@@ -45,7 +45,7 @@ vms:
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
-    hardware_version: "vmx-20"
+    hardware_version: "20"
   - role: "Master"
     index: 3
     num_cpus: 8
@@ -55,7 +55,7 @@ vms:
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
-    hardware_version: "vmx-20"
+    hardware_version: "20"
   - role: "Worker"
     index: 1
     num_cpus: 16
@@ -65,7 +65,7 @@ vms:
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
-    hardware_version: "vmx-20"
+    hardware_version: "20"
   - role: "Worker"
     index: 2
     num_cpus: 16
@@ -75,7 +75,7 @@ vms:
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
-    hardware_version: "vmx-20"
+    hardware_version: "20"
   - role: "Worker"
     index: 3
     num_cpus: 16
@@ -85,7 +85,7 @@ vms:
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
-    hardware_version: "vmx-20"  
+    hardware_version: "20"  
   - role: "bootstrap"
     index: 1
     num_cpus: 8
@@ -95,7 +95,7 @@ vms:
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
-    hardware_version: "vmx-20" 
+    hardware_version: "20" 
   - role: "Bastion"
     index: 1
     num_cpus: 4
@@ -105,7 +105,7 @@ vms:
     network: "NET-192.168.110.0"
     iso: "{{ iso_path_rhel9 }}"  
     guest_id: "rhel9_64Guest"
-    hardware_version: "vmx-20" 
+    hardware_version: "20" 
     
 
 # ============================================================
