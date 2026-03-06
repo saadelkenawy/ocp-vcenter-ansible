@@ -58,34 +58,24 @@ vms:
     hardware_version: "20"
   - role: "Worker"
     index: 1
-    num_cpus: 16
-    memory_mb: 32768
+    num_cpus: 8
+    memory_mb: 16384
     disk1_size_gb: 120
-    disk2_size_gb: 500
+    disk2_size_gb: 300
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
     hardware_version: "20"
   - role: "Worker"
     index: 2
-    num_cpus: 16
-    memory_mb: 32768
+    num_cpus: 8
+    memory_mb: 16384
     disk1_size_gb: 120
-    disk2_size_gb: 500
+    disk2_size_gb: 300
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
     hardware_version: "20"
-  - role: "Worker"
-    index: 3
-    num_cpus: 16
-    memory_mb: 32768
-    disk1_size_gb: 120
-    disk2_size_gb: 500
-    network: "NET-192.168.110.0"
-    iso: "{{ iso_path }}"
-    guest_id: "coreos64Guest"
-    hardware_version: "20"  
   - role: "bootstrap"
     index: 1
     num_cpus: 8
@@ -106,6 +96,41 @@ vms:
     iso: "{{ iso_path_rhel9 }}"  
     guest_id: "rhel9_64Guest"
     hardware_version: "20" 
+    #-------------------------
+    # Add ODF Nodes
+    #-------------------------
+  - role: "ODF"
+    index: 1
+    num_cpus: 8
+    memory_mb: 24576
+    disk1_size_gb: 150
+    disk2_size_gb: 500   
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}" 
+    guest_id: "coreos64Guest"
+    hardware_version: "20" 
+  - role: "ODF"
+    index: 2
+    num_cpus: 8
+    memory_mb: 24576
+    disk1_size_gb: 150
+    disk2_size_gb: 500   
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}" 
+    guest_id: "coreos64Guest"
+    hardware_version: "20"
+  - role: "ODF"
+    index: 3
+    num_cpus: 8
+    memory_mb: 24576
+    disk1_size_gb: 150
+    disk2_size_gb: 500   
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}" 
+    guest_id: "coreos64Guest"
+    hardware_version: "20"
+
+
     
 
 # ============================================================
