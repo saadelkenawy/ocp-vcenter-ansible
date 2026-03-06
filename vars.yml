@@ -16,9 +16,9 @@ iso_path: "[DATASTORE_4_HDD] Enawy-Infrasturcture ISOs/RHCOS-4.20/rhcos-4.20.12-
 # ============================================================
 # VM Naming Convention
 # Server names will be: {{ vm_name_prefix }}-{{ vm_role }}{{ index }}
-# Example: Enawy-OCP-Master1, Enawy-OCP-Worker1
+# Example: Enawy-OCP-Test-Master1, Enawy-OCP-Test-Worker1
 # ============================================================
-vm_name_prefix: "Enawy-OCP"
+vm_name_prefix: "Enawy-OCP-Test-Test-Test"
 
 # ============================================================
 # VM Definitions (one entry per VM)
