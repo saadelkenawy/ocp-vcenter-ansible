@@ -31,7 +31,8 @@ vms:
     memory_mb: 16384
     disk1_size_gb: 120
     disk2_size_gb: 200
-    network: "NET-192.168.150.0"
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
     hardware_version: "vmx-21"
   - role: "Master"
@@ -40,7 +41,8 @@ vms:
     memory_mb: 16384
     disk1_size_gb: 120
     disk2_size_gb: 200
-    network: "NET-192.168.150.0"
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
     hardware_version: "vmx-19"
   - role: "Master"
@@ -49,7 +51,8 @@ vms:
     memory_mb: 16384
     disk1_size_gb: 120
     disk2_size_gb: 200
-    network: "NET-192.168.150.0"
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
     hardware_version: "vmx-19"
   - role: "Worker"
@@ -58,7 +61,8 @@ vms:
     memory_mb: 32768
     disk1_size_gb: 120
     disk2_size_gb: 500
-    network: "NET-192.168.150.0"
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
     hardware_version: "vmx-19"
   - role: "Worker"
@@ -67,7 +71,8 @@ vms:
     memory_mb: 32768
     disk1_size_gb: 120
     disk2_size_gb: 500
-    network: "NET-192.168.150.0"
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
     hardware_version: "vmx-19"
   - role: "Worker"
@@ -76,7 +81,8 @@ vms:
     memory_mb: 32768
     disk1_size_gb: 120
     disk2_size_gb: 500
-    network: "NET-192.168.150.0"
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
     hardware_version: "vmx-21"  
   - role: "bootstrap"
@@ -85,7 +91,8 @@ vms:
     memory_mb: 16384
     disk1_size_gb: 120
     disk2_size_gb: 0    
-    network: "NET-192.168.150.0"
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
     hardware_version: "vmx-21" 
   - role: "Bastion"
@@ -94,7 +101,7 @@ vms:
     memory_mb: 8192
     disk1_size_gb: 120
     disk2_size_gb: 0    
-    network: "NET-192.168.150.0"
+    network: "NET-192.168.110.0"
     iso: "{{ iso_path_rhel9 }}"  
     guest_id: "rhel9_64Guest"
     hardware_version: "vmx-21" 
