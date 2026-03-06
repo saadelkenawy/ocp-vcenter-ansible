@@ -45,6 +45,7 @@
         unit_number: 1
         disk_mode: persistent
   register: disk2_result
+  when: item.disk2_size_gb | int > 0
 
 - name: "Disk status for {{ current_vm_name }}"
   ansible.builtin.debug:
