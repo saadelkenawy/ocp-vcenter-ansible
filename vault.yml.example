@@ -1,0 +1,15 @@
+---
+# ============================================================
+# ENCRYPTED VAULT FILE - vault.yml
+# ============================================================
+# To create this file encrypted, run:
+#   ansible-vault create vault.yml
+# To edit later:
+#   ansible-vault edit vault.yml
+# To encrypt an existing plain file:
+#   ansible-vault encrypt vault.yml
+# ============================================================
+
+vcenter_username: "administrator@gts.local"
+vcenter_password: "GTS_Secret@123"
+vcenter_validate_certs: false          # Set true in production with valid certs

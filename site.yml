@@ -1,0 +1,69 @@
+---
+# ============================================================
+# site.yml - Main Playbook
+# Creates 6 OpenShift VMs on vCenter (no template, ISO attach)
+# Run with: ansible-playbook site.yml --ask-vault-pass
+# ============================================================
+
+- name: "Deploy OpenShift VMs on vCenter"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - vars.yml
+    - vault.yml       # Encrypted: vcenter_username, vcenter_password
+
+  tasks:
+
+    # --------------------------------------------------------
+    # PHASE 1: Create all VMs
+    # --------------------------------------------------------
+    - name: "PHASE 1 - Create VMs"
+      ansible.builtin.debug:
+        msg: "Starting VM creation for {{ vms | length }} machines..."
+
+    - name: "Create VM for each entry"
+      ansible.builtin.include_tasks: tasks/create_vm.yml
+      loop: "{{ vms }}"
+      loop_control:
+        label: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+
+    # --------------------------------------------------------
+    # PHASE 2: Add disks (idempotent, safe to re-run)
+    # --------------------------------------------------------
+    - name: "PHASE 2 - Add disks to all VMs"
+      ansible.builtin.debug:
+        msg: "Adding 2 disks to each VM..."
+
+    - name: "Add disks to each VM"
+      ansible.builtin.include_tasks: tasks/add_disks.yml
+      loop: "{{ vms }}"
+      loop_control:
+        label: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+
+    # --------------------------------------------------------
+    # PHASE 3: Apply advanced parameters per VM
+    # --------------------------------------------------------
+    - name: "PHASE 3 - Apply advanced VM parameters"
+      ansible.builtin.debug:
+        msg: "Applying advanced parameters to each VM..."
+
+    - name: "Set advanced params for each VM"
+      ansible.builtin.include_tasks: tasks/set_advanced_params.yml
+      loop: "{{ vms }}"
+      loop_control:
+        label: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+
+    # --------------------------------------------------------
+    # PHASE 4: Summary
+    # --------------------------------------------------------
+    - name: "Deployment Summary"
+      ansible.builtin.debug:
+        msg: "{{ item }}"
+      loop:
+        - "=================================================="
+        - "  OpenShift VM Deployment Complete"
+        - "=================================================="
+        - "{% for vm in vms %}  ✔ {{ vm_name_prefix }}-{{ vm.role }}{{ vm.index }} | CPU: {{ vm.num_cpus }} | RAM: {{ vm.memory_mb }}MB | Disk1: {{ vm.disk1_size_gb }}GB | Disk2: {{ vm.disk2_size_gb }}GB{% endfor %}"
+        - "=================================================="

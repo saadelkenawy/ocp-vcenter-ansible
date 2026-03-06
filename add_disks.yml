@@ -1,0 +1,53 @@
+---
+# ============================================================
+# tasks/add_disks.yml
+# Task: Add/verify two disks on each VM
+# Called separately from main playbook after VM creation
+# This task is idempotent - safe to re-run
+# ============================================================
+
+- name: "Set VM full name - {{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+  ansible.builtin.set_fact:
+    current_vm_name: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+
+- name: "Ensure Disk 1 (OS disk - {{ item.disk1_size_gb }}GB) on {{ current_vm_name }}"
+  community.vmware.vmware_guest_disk:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ vcenter_validate_certs }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    name: "{{ current_vm_name }}"
+    disk:
+      - size_gb: "{{ item.disk1_size_gb }}"
+        type: thin
+        datastore: "{{ vcenter_datastore }}"
+        state: present
+        scsi_controller: 0
+        unit_number: 0
+        disk_mode: persistent
+  register: disk1_result
+
+- name: "Ensure Disk 2 (Data disk - {{ item.disk2_size_gb }}GB) on {{ current_vm_name }}"
+  community.vmware.vmware_guest_disk:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ vcenter_validate_certs }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    name: "{{ current_vm_name }}"
+    disk:
+      - size_gb: "{{ item.disk2_size_gb }}"
+        type: thin
+        datastore: "{{ vcenter_datastore }}"
+        state: present
+        scsi_controller: 0
+        unit_number: 1
+        disk_mode: persistent
+  register: disk2_result
+
+- name: "Disk status for {{ current_vm_name }}"
+  ansible.builtin.debug:
+    msg:
+      - "Disk 1 ({{ item.disk1_size_gb }}GB): {{ 'Updated' if disk1_result is changed else 'Already present' }}"
+      - "Disk 2 ({{ item.disk2_size_gb }}GB): {{ 'Updated' if disk2_result is changed else 'Already present' }}"

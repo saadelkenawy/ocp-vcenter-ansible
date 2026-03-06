@@ -1,0 +1,29 @@
+---
+# ============================================================
+# tasks/set_advanced_params.yml
+# Task: Apply advanced VM parameters (extraConfig) to each VM
+# Applied per-VM, looping over vm_advanced_parameters dict
+# ============================================================
+
+- name: "Set VM full name - {{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+  ansible.builtin.set_fact:
+    current_vm_name: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+
+- name: "Apply advanced parameters to {{ current_vm_name }}"
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ vcenter_validate_certs }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    name: "{{ current_vm_name }}"
+    state: present
+    customvalues:
+      "{{ vm_advanced_parameters | dict2items | map(attribute='key') |
+          zip(vm_advanced_parameters | dict2items | map(attribute='value')) |
+          list }}"
+  register: adv_params_result
+
+- name: "Advanced params status for {{ current_vm_name }}"
+  ansible.builtin.debug:
+    msg: "Advanced parameters {{ 'applied' if adv_params_result is changed else 'already set' }} on {{ current_vm_name }}"

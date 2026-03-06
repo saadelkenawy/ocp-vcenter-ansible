@@ -1,0 +1,64 @@
+---
+# ============================================================
+# tasks/create_vm.yml
+# Task: Create a single VM in vCenter without a template
+# Called in a loop from the main playbook via include_tasks
+# ============================================================
+
+- name: "Set VM full name - {{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+  ansible.builtin.set_fact:
+    current_vm_name: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+
+- name: "Create VM {{ current_vm_name }}"
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ vcenter_validate_certs }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    esxi_hostname: "{{ esxi_hostname }}"
+    folder: "{{ vcenter_folder }}"
+    name: "{{ current_vm_name }}"
+    state: present
+    guest_id: "{{ item.guest_id }}"
+    hardware:
+      version: "{{ item.hardware_version }}"
+      num_cpus: "{{ item.num_cpus }}"
+      memory_mb: "{{ item.memory_mb }}"
+      boot_firmware: "efi"
+      secure_boot: false
+    disk:
+      - size_gb: "{{ item.disk1_size_gb }}"
+        type: thin
+        datastore: "{{ vcenter_datastore }}"
+      - size_gb: "{{ item.disk2_size_gb }}"
+        type: thin
+        datastore: "{{ vcenter_datastore }}"
+    networks:
+      - name: "{{ item.network }}"
+        device_type: vmxnet3
+        connected: true
+        start_connected: true
+    cdrom:
+      - controller_number: 0
+        unit_number: 0
+        state: present
+        type: iso
+        iso_path: "[{{ iso_datastore }}] {{ iso_path }}"
+    customvalues: >-
+      {{
+        vm_advanced_parameters | dict2items
+        | map(attribute='key') | zip(
+          vm_advanced_parameters | dict2items | map(attribute='value')
+        )
+        | map('join', '|')
+        | map('regex_replace', '^(.+)\|(.+)$', '{"key": "\1", "value": "\2"}')
+        | map('from_json')
+        | list
+      }}
+  register: vm_creation_result
+
+- name: "Show result for {{ current_vm_name }}"
+  ansible.builtin.debug:
+    msg: "VM {{ current_vm_name }} created successfully. UUID: {{ vm_creation_result.instance.hw_product_uuid | default('N/A') }}"
+  when: vm_creation_result is changed
