@@ -12,6 +12,7 @@ esxi_hostname: "10.20.20.21"
 # ============================================================
 iso_datastore: "DATASTORE_4_HDD"
 iso_path: "[DATASTORE_4_HDD] Enawy-Infrasturcture ISOs/RHCOS-4.20/rhcos-4.20.12-x86_64-live-iso.x86_64.iso"  
+so_path_rhel9: "Enawy-Infrasturcture ISOs/rhel-9.6-x86_64-dvd.iso"
 
 # ============================================================
 # VM Naming Convention
