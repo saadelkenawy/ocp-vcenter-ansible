@@ -1,0 +1,79 @@
+---
+# --------------------------------------------------------
+# 1 - Disable Firewalld & Set SELinux Permissive
+# --------------------------------------------------------
+- name: "Disable and stop firewalld permanently"
+  ansible.builtin.systemd:
+    name: firewalld
+    state: stopped
+    enabled: false
+
+- name: "Set SELinux to permissive mode permanently"
+  ansible.posix.selinux:
+    policy: targeted
+    state: permissive
+
+# --------------------------------------------------------
+# 2 - Add /etc/hosts record
+# --------------------------------------------------------
+- name: "Add rhel-golden to /etc/hosts"
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "192.168.200.20 rhel-golden.ssz.gts"
+    state: present
+- name: "Create local RHEL9 repo file"
+  ansible.builtin.copy:
+    dest: /etc/yum.repos.d/local-rhel9.repo
+    force: true
+    content: |
+      [RHEL9-Baseos]
+      name=Sync Repo RHEL9 BaseOS
+      baseurl=http://rhel-golden.ssz.gts/redhat-rpms/rhel9/baseos/
+      gpgcheck=0
+      enabled=1
+      sslverify=0
+      priority=1
+
+      [RHEL9-AppStream]
+      name=Sync Repo RHEL9 Appstream
+      baseurl=http://rhel-golden.ssz.gts/redhat-rpms/rhel9/appstream/
+      gpgcheck=0
+      enabled=1
+      sslverify=0
+      priority=1
+
+      [RHEL9-Codeready]
+      name=Sync Repo RHEL9 Codeready
+      baseurl=http://rhel-golden.ssz.gts/redhat-rpms/rhel9/codeready/
+      gpgcheck=0
+      enabled=1
+      sslverify=0
+      priority=1
+
+      [RHEL9-HA]
+      name=Sync Repo RHEL9 High Availability
+      baseurl=http://rhel-golden.ssz.gts/redhat-rpms/rhel9/highavailability/
+      gpgcheck=0
+      enabled=1
+      sslverify=0
+      priority=1
+# --------------------------------------------------------
+# 4 - DNF Update & Install Packages
+# --------------------------------------------------------
+- name: "DNF update all packages"
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+
+- name: "Install required packages"
+  ansible.builtin.dnf:
+    name:
+      - chrony
+      - bind
+      - bind-utils
+      - dhcp-server
+      - haproxy
+      - keepalived
+    state: present
+
