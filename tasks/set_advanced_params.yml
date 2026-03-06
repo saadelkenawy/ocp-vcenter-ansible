@@ -5,7 +5,7 @@
 # Applied per-VM, looping over vm_advanced_parameters dict
 # ============================================================
 
-- name: "Set VM full name - {{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+- name: "Set VM full name"
   ansible.builtin.set_fact:
     current_vm_name: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
 
@@ -19,9 +19,18 @@
     name: "{{ current_vm_name }}"
     state: present
     customvalues:
-      "{{ vm_advanced_parameters | dict2items | map(attribute='key') |
-          zip(vm_advanced_parameters | dict2items | map(attribute='value')) |
-          list }}"
+      - key: "disk.EnableUUID"
+        value: "TRUE"
+      - key: "tools.syncTime"
+        value: "FALSE"
+      - key: "mem.hotadd"
+        value: "FALSE"
+      - key: "cpu.hotadd"
+        value: "FALSE"
+      - key: "hpet0.present"
+        value: "FALSE"
+      - key: "guestinfo.ignition.config.data.encoding"
+        value: "base64"
   register: adv_params_result
 
 - name: "Advanced params status for {{ current_vm_name }}"
