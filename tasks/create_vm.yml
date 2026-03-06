@@ -27,13 +27,12 @@
       memory_mb: "{{ item.memory_mb }}"
       boot_firmware: "efi"
       secure_boot: false
-    disk:
-      - size_gb: "{{ item.disk1_size_gb }}"
-        type: thin
-        datastore: "{{ vcenter_datastore }}"
-      - size_gb: "{{ item.disk2_size_gb }}"
-        type: thin
-        datastore: "{{ vcenter_datastore }}"
+    disk: >-
+        {{
+          [{'size_gb': item.disk1_size_gb, 'type': 'thin', 'datastore': vcenter_datastore}]
+          + ([{'size_gb': item.disk2_size_gb, 'type': 'thin', 'datastore': vcenter_datastore}]
+          if item.disk2_size_gb | int > 0 else [])
+        }}
     networks:
       - name: "{{ item.network }}"
         device_type: vmxnet3
