@@ -6,6 +6,7 @@ vcenter_hostname: "10.20.20.200"
 vcenter_datacenter: "GTS_KSA"
 vcenter_datastore: "DATASTORE_4_HDD"
 esxi_hostname: "10.20.20.21"
+vcenter_folder: "/GTS_KSA/NBE-OCP"
 
 # ============================================================
 # ISO Settings (must exist in vCenter datastore)
