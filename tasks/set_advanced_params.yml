@@ -18,7 +18,7 @@
     datacenter: "{{ vcenter_datacenter }}"
     name: "{{ current_vm_name }}"
     state: present
-    customvalues:
+    advanced_settings:
       - key: "disk.EnableUUID"
         value: "TRUE"
       - key: "tools.syncTime"
@@ -31,6 +31,8 @@
         value: "FALSE"
       - key: "guestinfo.ignition.config.data.encoding"
         value: "base64"
+      - key: "stealclock.enable"
+        value: "TRUE"
   register: adv_params_result
 
 - name: "Advanced params status for {{ current_vm_name }}"
