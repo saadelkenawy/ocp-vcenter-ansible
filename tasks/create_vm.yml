@@ -17,7 +17,6 @@
     validate_certs: "{{ vcenter_validate_certs }}"
     datacenter: "{{ vcenter_datacenter }}"
     esxi_hostname: "{{ esxi_hostname }}"
-    folder: "{{ vcenter_folder }}"
     name: "{{ current_vm_name }}"
     state: present
     guest_id: "{{ item.guest_id }}"
