@@ -68,9 +68,40 @@
       loop_control:
         label: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
 
+    # --------------------------------------------------------
+    # PHASE 4 - Collect MAC Addresses
+    # --------------------------------------------------------
+    - name: "PHASE 4 - Collect MAC addresses of all VMs"
+      community.vmware.vmware_guest_info:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ vcenter_validate_certs }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        name: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+      register: vm_info
+      loop: "{{ vms }}"
+      loop_control:
+        label: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
+
+    - name: "Display and save MAC addresses"
+      ansible.builtin.debug:
+        msg: "{{ vm_name_prefix }}-{{ item.item.role }}{{ item.item.index }} → {{ item.instance.hw_eth0.macaddress | default('N/A') }}"
+      loop: "{{ vm_info.results }}"
+      loop_control:
+        label: "{{ item.item.role }}{{ item.item.index }}"
+
+    - name: "Save MAC addresses to file"
+      ansible.builtin.copy:
+        content: |
+          {% for result in vm_info.results %}
+          {{ vm_name_prefix }}-{{ result.item.role }}{{ result.item.index }}: {{ result.instance.hw_eth0.macaddress | default('N/A') }}
+          {% endfor %}
+        dest: "/home/saad/ocp-vcenter-ansible/mac_addresses.txt"
+        force: true
 
     # --------------------------------------------------------
-    # PHASE 4: PowerOn Bastion
+    # PHASE 5: PowerOn Bastion
     # --------------------------------------------------------
     - name: "PHASE 4 - Power On Bastion"
       ansible.builtin.pause:
@@ -88,8 +119,41 @@
         state: powered-on
       when: poweron_answer.user_input | lower == "yes"
 
+    - name: "Waiting — complete Bastion OS installation then press Enter"
+      ansible.builtin.pause:
+        prompt: |
+          ======================================================
+          Bastion VM is powered on.
+          1. Complete RHEL9 installation via vSphere console
+          2. Assign a static IP to Bastion
+          3. Once Bastion is up, enter its IP address below
+          ======================================================
+          Enter Bastion IP address
+      register: bastion_ip_input
+ 
+    - name: "Save Bastion IP for later tasks"
+      ansible.builtin.set_fact:
+        bastion_ip: "{{ bastion_ip_input.user_input }}"
+
+    - name: "Confirm Bastion IP saved"
+      ansible.builtin.debug:
+        msg: "Bastion IP set to: {{ bastion_ip }} — ready for next tasks"
+
+    - name: "Save Bastion IP to file"
+      ansible.builtin.copy:
+        content: "bastion_ip: {{ bastion_ip }}\n"
+        dest: "/home/saad/ocp-vcenter-ansible/bastion_ip.txt"
+        force: true
+
+    - name: "Test connectivity to Bastion"
+      ansible.builtin.wait_for:
+        host: "{{ bastion_ip }}"
+        port: 22
+        timeout: 300
+        msg: "Waiting for Bastion SSH to become available..."
+
     # --------------------------------------------------------
-    # PHASE 5: Summary
+    # PHASE 6: Summary
     # --------------------------------------------------------
     - name: "Deployment Summary"
       ansible.builtin.debug:
