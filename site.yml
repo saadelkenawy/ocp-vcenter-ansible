@@ -68,8 +68,28 @@
       loop_control:
         label: "{{ vm_name_prefix }}-{{ item.role }}{{ item.index }}"
 
+
     # --------------------------------------------------------
-    # PHASE 4: Summary
+    # PHASE 4: PowerOn Bastion
+    # --------------------------------------------------------
+    - name: "PHASE 4 - Power On Bastion"
+      ansible.builtin.pause:
+        prompt: "Do you want to power on Bastion VM? (yes/no)"
+      register: poweron_answer
+
+    - name: "Power On Bastion"
+      community.vmware.vmware_guest_powerstate:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ vcenter_validate_certs }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        name: "{{ vm_name_prefix }}-Bastion1"
+        state: powered-on
+      when: poweron_answer.user_input | lower == "yes"
+
+    # --------------------------------------------------------
+    # PHASE 5: Summary
     # --------------------------------------------------------
     - name: "Deployment Summary"
       ansible.builtin.debug:
