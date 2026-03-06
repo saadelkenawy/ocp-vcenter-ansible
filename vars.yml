@@ -95,6 +95,7 @@ vms:
     disk1_size_gb: 120
     disk2_size_gb: 0    
     network: "NET-192.168.150.0"
+    iso: "{{ iso_path_rhel9 }}"  
     guest_id: "rhel9_64Guest"
     hardware_version: "vmx-21" 
     
