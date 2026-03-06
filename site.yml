@@ -153,7 +153,33 @@
         msg: "Waiting for Bastion SSH to become available..."
 
     # --------------------------------------------------------
-    # PHASE 6: Summary
+    # PHASE 6 - Configure Bastion
+    # --------------------------------------------------------
+    - name: "PHASE 6 - Configure Bastion"
+      ansible.builtin.debug:
+        msg: "Starting Bastion configuration on {{ bastion_ip }}..."
+
+    - name: "Add Bastion to in-memory inventory"
+      ansible.builtin.add_host:
+        name: "bastion"
+        ansible_host: "{{ bastion_ip }}"
+        ansible_user: root
+        ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+
+    - name: "Configure Bastion Server"
+      hosts: bastion
+      gather_facts: true
+
+      vars_files:
+        - vars.yml
+        - vault.yml
+
+      tasks:
+        - name: "Run Bastion configuration tasks"
+          ansible.builtin.include_tasks: tasks/configure_bastion.yml
+    
+    # --------------------------------------------------------
+    # PHASE 7: Summary
     # --------------------------------------------------------
     - name: "Deployment Summary"
       ansible.builtin.debug:
