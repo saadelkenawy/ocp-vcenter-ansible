@@ -5,48 +5,12 @@
 # ============================================================
 
 # --------------------------------------------------------
-# 1 - Ask NTP type
+# 1 - Ask for NTP servers
 # --------------------------------------------------------
-- name: "Ask NTP server type"
+- name: "Ask for NTP servers"
   ansible.builtin.pause:
-    prompt: |
-      Select NTP server type:
-      1 - Public  (e.g. 0.africa.pool.ntp.org)
-      2 - Internal (e.g. bastion.nbe.gts or IP)
-      Enter 1 or 2
-  register: ntp_type_input
-  until: ntp_type_input.user_input | trim in ['1', '2']
-  retries: 5
-  delay: 0
-  delegate_to: localhost
-
-- name: "Fail if invalid NTP type"
-  ansible.builtin.fail:
-    msg: "Invalid selection — must be 1 or 2"
-  when: ntp_type_input.user_input | trim not in ['1', '2']
-
-# --------------------------------------------------------
-# 2 - Ask for NTP servers (mandatory, multi-entry)
-# --------------------------------------------------------
-- name: "Ask for NTP servers (public)"
-  ansible.builtin.pause:
-    prompt: |
-      Enter public NTP servers (space-separated, mandatory)
-      Example: 0.africa.pool.ntp.org 1.africa.pool.ntp.org
+    prompt: "Enter NTP servers space-separated (e.g. 0.africa.pool.ntp.org 192.168.200.100)"
   register: ntp_servers_input
-  when: ntp_type_input.user_input | trim == '1'
-  until: ntp_servers_input.user_input | trim != ""
-  retries: 5
-  delay: 0
-  delegate_to: localhost
-
-- name: "Ask for NTP servers (internal)"
-  ansible.builtin.pause:
-    prompt: |
-      Enter internal NTP servers (space-separated, mandatory)
-      Example: server.base.domain 192.168.xx.xx
-  register: ntp_servers_input
-  when: ntp_type_input.user_input | trim == '2'
   until: ntp_servers_input.user_input | trim != ""
   retries: 5
   delay: 0
@@ -56,10 +20,12 @@
   ansible.builtin.fail:
     msg: "NTP server(s) cannot be empty — please re-run"
   when: ntp_servers_input.user_input | trim == ""
+  delegate_to: localhost
 
-- name: "Set NTP servers list fact"
+- name: "Set NTP servers fact"
   ansible.builtin.set_fact:
     ntp_servers: "{{ ntp_servers_input.user_input | trim | split(' ') | select('ne', '') | list }}"
+  delegate_to: localhost
 
 # --------------------------------------------------------
 # 3 - Ask for allowed client networks (multi-entry)
@@ -154,7 +120,6 @@
       - "=================================================="
       - "  NTP Configuration Complete"
       - "=================================================="
-      - "  Type      : {{ 'Public' if ntp_type_input.user_input | trim == '1' else 'Internal' }}"
       - "  Servers   : {{ ntp_servers | join(', ') }}"
       - "  Networks  : {{ ntp_allow_networks | join(', ') if ntp_allow_networks | length > 0 else 'localhost only' }}"
       - "=================================================="
