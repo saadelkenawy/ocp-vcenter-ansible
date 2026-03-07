@@ -43,7 +43,7 @@
     python3 -c "
     import json
     macs = {}
-    with open('/home/{{ local_user }}/ocp-vcenter-ansible/mac_addresses.txt') as f:
+    with open('/tmp/mac_addresses.txt') as f:
         for line in f:
             line = line.strip()
             if ':' in line:
@@ -60,12 +60,6 @@
     mac_addresses: "{{ mac_parse_result.stdout | from_json }}"
   
 
-- name: "Copy mac_addresses.txt to bastion"
-  ansible.builtin.copy:
-    src: "/home/{{ local_user }}/ocp-vcenter-ansible/mac_addresses.txt"
-    dest: "/tmp/mac_addresses.txt"
-    mode: "0644"
-  
 # --------------------------------------------------------
 # 3 - Gather network info from bastion
 # --------------------------------------------------------
@@ -74,10 +68,9 @@
   register: gateway_result
   changed_when: false
 
-- name: "Get broadcast address"
-  ansible.builtin.shell: "ip addr | grep 'inet ' | awk -F'brd ' '{print $2}' | awk '{print $1}' | head -1"
-  register: broadcast_result
-  changed_when: false
+- name: "Set broadcast address"
+  ansible.builtin.set_fact:
+    bastion_bc: "{{ bastion_ip | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.\\d+', '\\1.255') }}"
 
 - name: "Set network facts"
   ansible.builtin.set_fact:
@@ -104,16 +97,10 @@
   until: domain_input.user_input | trim != ""
   retries: 5
   delay: 0
-  delegate_to: localhost
 
 - name: "Set domain fact"
   ansible.builtin.set_fact:
     dhcp_domain: "{{ domain_input.user_input | trim }}"
-  delegate_to: localhost
-
-- name: "Share domain with bastion"
-  ansible.builtin.set_fact:
-    dhcp_domain: "{{ hostvars['localhost']['dhcp_domain'] }}"
 
 # --------------------------------------------------------
 # 5 - Build reserved IP list from MAC addresses
@@ -123,11 +110,8 @@
   ansible.builtin.set_fact:
     vm_reservations: >-
       {{
-        mac_addresses.items()
+        mac_addresses | dict2items
         | rejectattr('key', 'search', 'Bastion')
-        | list
-        | zip(range(50, 50 + (mac_addresses | length)))
-        | map('flatten')
         | list
       }}
 
@@ -156,7 +140,7 @@
       # Subnet Configuration
       # -------------------------------
       subnet {{ subnet_network }} netmask {{ subnet_netmask }} {
-        range {{ subnet_network | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.0', '\\1.100') }} {{ subnet_network | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.0', '\\1.200') }};
+        range {{ bastion_ip | regex_replace('(\d+\.\d+\.\d+)\.\d+', '\1.100') }} {{ bastion_ip | regex_replace('(\d+\.\d+\.\d+)\.\d+', '\1.200') }};
         option broadcast-address {{ bastion_bc }};
         option ntp-servers {{ bastion_ip }};
         default-lease-time 600;
@@ -172,7 +156,7 @@
       host {{ vm_name }} {
         hardware ethernet {{ mac }};
         fixed-address {{ subnet_network | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.0', '\\1.' + ns.index | string) }};
-        option host-name "{{ vm_name | lower }}.{{ dhcp_domain }}";
+        option host-name "{{ vm_name | regex_replace('^.+-OCP-Test-', '') | lower }}.{{ dhcp_domain }}";
       }
       {% set ns.index = ns.index + 1 %}
       {% endif %}
