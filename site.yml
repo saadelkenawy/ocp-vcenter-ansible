@@ -169,13 +169,18 @@
   vars_files:
     - vars.yml
     - vault.yml
-
+#--------------------------------------------------------
+# Bastion Calling Tasks
+#-------------------------------------------------------
   tasks:
     - name: "Run Bastion configuration tasks"
       ansible.builtin.include_tasks: tasks/configure_bastion.yml
 
     - name: "Configure DNS"
       ansible.builtin.include_tasks: tasks/configure_dns.yml
+
+    - name: "Configure NTP"
+      ansible.builtin.include_tasks: tasks/configure_ntp.yml
     
     # --------------------------------------------------------
     # PHASE 7: Summary
