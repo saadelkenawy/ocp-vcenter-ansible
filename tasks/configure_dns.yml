@@ -26,7 +26,10 @@
 
 - name: "Get network info using ipcalc"
   ansible.builtin.shell: |
-    ipcalc -n -p {{ bastion_ip }} | awk -F= '{print $2}' | paste - - | awk '{print $1"/"$2}'
+    ansible.builtin.shell: |
+    NETWORK=$(ipcalc -n 192.168.110.10/24 | awk -F= '{print $2}')
+    PREFIX=$(ipcalc -p 192.168.110.10/24 | awk -F= '{print $2}')
+    echo "${NETWORK}/${PREFIX}"
   register: ipcalc_result
   changed_when: false
 
