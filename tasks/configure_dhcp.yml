@@ -1,0 +1,190 @@
+---
+# ============================================================
+# tasks/configure_dhcp.yml
+# Configure DHCP Server on Bastion
+# ============================================================
+
+# --------------------------------------------------------
+# 1 - Load bastion_ip from file
+# --------------------------------------------------------
+- name: "Load bastion_ip from file"
+  ansible.builtin.slurp:
+    src: /home/{{ local_user }}/ocp-vcenter-ansible/bastion_ip.txt
+  register: bastion_ip_file
+  delegate_to: localhost
+
+- name: "Set bastion_ip fact"
+  ansible.builtin.set_fact:
+    bastion_ip: "{{ bastion_ip_file.content | b64decode | regex_search('bastion_ip: (.+)', '\\1') | first | trim }}"
+  delegate_to: localhost
+
+- name: "Share bastion_ip with bastion host"
+  ansible.builtin.set_fact:
+    bastion_ip: "{{ hostvars['localhost']['bastion_ip'] }}"
+
+
+# --------------------------------------------------------
+# 2 - Load MAC addresses from file
+# --------------------------------------------------------
+- name: "Load MAC addresses from file"
+  ansible.builtin.slurp:
+    src: /home/{{ local_user }}/ocp-vcenter-ansible/mac_addresses.txt
+  register: mac_file
+  delegate_to: localhost
+
+- name: "Parse MAC addresses into dict"
+  ansible.builtin.set_fact:
+    mac_addresses: >-
+      {{
+        mac_file.content | b64decode | split('\n')
+        | select('match', '.+:.+')
+        | map('trim')
+        | select('ne', '')
+        | map('regex_replace', '^(.+):\s+(.+)$', '\1|\2')
+        | map('split', '|')
+        | items2dict(key_name=0, value_name=1)
+      }}
+  delegate_to: localhost
+
+- name: "Share mac_addresses with bastion host"
+  ansible.builtin.set_fact:
+    mac_addresses: "{{ hostvars['localhost']['mac_addresses'] }}"
+
+# --------------------------------------------------------
+# 3 - Gather network info from bastion
+# --------------------------------------------------------
+- name: "Get default gateway"
+  ansible.builtin.shell: "ip route | grep default | awk '{print $3}'"
+  register: gateway_result
+  changed_when: false
+
+- name: "Get broadcast address"
+  ansible.builtin.shell: "ip addr | grep 'inet ' | awk -F'brd ' '{print $2}' | awk '{print $1}' | head -1"
+  register: broadcast_result
+  changed_when: false
+
+- name: "Set network facts"
+  ansible.builtin.set_fact:
+    bastion_gateway: "{{ gateway_result.stdout | trim }}"
+    bastion_bc: "{{ broadcast_result.stdout | trim }}"
+    subnet_network: "{{ bastion_ip | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.\\d+', '\\1.0') }}"
+    subnet_netmask: "255.255.255.0"
+
+- name: "Display gathered network info"
+  ansible.builtin.debug:
+    msg:
+      - "Bastion IP  : {{ bastion_ip }}"
+      - "Gateway     : {{ bastion_gateway }}"
+      - "Broadcast   : {{ bastion_bc }}"
+      - "Subnet      : {{ subnet_network }}"
+
+# --------------------------------------------------------
+# 4 - Ask for domain name
+# --------------------------------------------------------
+- name: "Ask for domain name"
+  ansible.builtin.pause:
+    prompt: "Enter domain name (e.g. ocp.gts)"
+  register: domain_input
+  until: domain_input.user_input | trim != ""
+  retries: 5
+  delay: 0
+  delegate_to: localhost
+
+- name: "Set domain fact"
+  ansible.builtin.set_fact:
+    dhcp_domain: "{{ domain_input.user_input | trim }}"
+  delegate_to: localhost
+
+- name: "Share domain with bastion"
+  ansible.builtin.set_fact:
+    dhcp_domain: "{{ hostvars['localhost']['dhcp_domain'] }}"
+
+# --------------------------------------------------------
+# 5 - Build reserved IP list from MAC addresses
+#     Skip Bastion, assign IPs starting from .50
+# --------------------------------------------------------
+- name: "Build VM reserved list"
+  ansible.builtin.set_fact:
+    vm_reservations: >-
+      {{
+        mac_addresses.items()
+        | rejectattr('key', 'search', 'Bastion')
+        | list
+        | zip(range(50, 50 + (mac_addresses | length)))
+        | map('flatten')
+        | list
+      }}
+
+# --------------------------------------------------------
+# 6 - Create /etc/dhcp/dhcpd.conf
+# --------------------------------------------------------
+- name: "Configure /etc/dhcp/dhcpd.conf"
+  ansible.builtin.copy:
+    dest: /etc/dhcp/dhcpd.conf
+    owner: root
+    group: root
+    mode: "0644"
+    force: true
+    content: |
+      # -------------------------------
+      # Global options
+      # -------------------------------
+      option domain-name "{{ dhcp_domain }}";
+      option domain-name-servers {{ bastion_ip }};
+      option routers {{ bastion_gateway }};
+
+      default-lease-time 600;
+      max-lease-time 7200;
+      authoritative;
+      # -------------------------------
+      # Subnet Configuration
+      # -------------------------------
+      subnet {{ subnet_network }} netmask {{ subnet_netmask }} {
+        range {{ subnet_network | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.0', '\\1.100') }} {{ subnet_network | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.0', '\\1.200') }};
+        option broadcast-address {{ bastion_bc }};
+        option ntp-servers {{ bastion_ip }};
+        default-lease-time 600;
+        max-lease-time 7200;
+      }
+
+      # -------------------------------
+      # Static IP Allocations
+      # -------------------------------
+      {% set ns = namespace(index=50) %}
+      {% for vm_name, mac in mac_addresses.items() %}
+      {% if 'Bastion' not in vm_name %}
+      host {{ vm_name }} {
+        hardware ethernet {{ mac }};
+        fixed-address {{ subnet_network | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.0', '\\1.' + ns.index | string) }};
+        option host-name "{{ vm_name | lower }}.{{ dhcp_domain }}";
+      }
+      {% set ns.index = ns.index + 1 %}
+      {% endif %}
+      {% endfor %}
+# --------------------------------------------------------
+# 7 - Enable and restart dhcpd
+# --------------------------------------------------------
+- name: "Enable and restart dhcpd"
+  ansible.builtin.systemd:
+    name: dhcpd
+    state: restarted
+    enabled: true
+
+- name: "Check dhcpd status"
+  ansible.builtin.command: systemctl status dhcpd
+  register: dhcpd_status
+  changed_when: false
+  ignore_errors: true
+
+- name: "DHCP Configuration Summary"
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "  DHCP Configuration Complete"
+      - "=================================================="
+      - "  Domain   : {{ dhcp_domain }}"
+      - "  Subnet   : {{ subnet_network }}/24"
+      - "  Gateway  : {{ bastion_gateway }}"
+      - "  Broadcast: {{ bastion_bc }}"
+      - "  Range    : {{ subnet_network | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.0', '\\1.100') }} - {{ subnet_network | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.0', '\\1.200') }}"
+      - "=================================================="
