@@ -1,0 +1,138 @@
+---
+# ============================================================
+# tasks/update_dns_zones.yml
+# Update DNS zone files with A and PTR records from dhcpd.conf
+# ============================================================
+
+# --------------------------------------------------------
+# 1 - Load dns_domain fact from named.conf
+# --------------------------------------------------------
+- name: "Get domain from named.conf"
+  ansible.builtin.shell: |
+    grep 'include "/etc/named/' /etc/named.conf | awk -F'"' '{print $2}' | sed 's|/etc/named/||' | sed 's|.conf||'
+  register: domain_result
+  changed_when: false
+
+- name: "Set dns_domain fact"
+  ansible.builtin.set_fact:
+    dns_domain: "{{ domain_result.stdout | trim }}"
+
+- name: "Display domain"
+  ansible.builtin.debug:
+    msg: "Domain: {{ dns_domain }}"
+
+# --------------------------------------------------------
+# 2 - Read assigned IPs from dhcpd.conf
+# --------------------------------------------------------
+- name: "Parse hosts from dhcpd.conf"
+  ansible.builtin.shell: |
+    python3 -c "
+    import re, json
+    hosts = []
+    with open('/etc/dhcp/dhcpd.conf') as f:
+        content = f.read()
+    blocks = re.findall(
+        r'host\s+(\S+)\s*\{[^}]*hardware ethernet\s+([^;]+);[^}]*fixed-address\s+([^;]+);[^}]*option host-name\s+\"([^\"]+)\"',
+        content, re.DOTALL
+    )
+    for block in blocks:
+        hosts.append({
+            'vm':       block[0].strip(),
+            'mac':      block[1].strip(),
+            'ip':       block[2].strip(),
+            'hostname': block[3].strip()
+        })
+    print(json.dumps(hosts))
+    "
+  register: dhcp_hosts
+  changed_when: false
+
+- name: "Set dhcp hosts fact"
+  ansible.builtin.set_fact:
+    dhcp_host_list: "{{ dhcp_hosts.stdout | from_json }}"
+
+- name: "Display parsed hosts"
+  ansible.builtin.debug:
+    msg: "{{ item.hostname }} → {{ item.ip }}"
+  loop: "{{ dhcp_host_list }}"
+  loop_control:
+    label: "{{ item.hostname }}"
+
+# --------------------------------------------------------
+# 3 - Update forward zone with A records
+# --------------------------------------------------------
+- name: "Update forward zone with A records"
+  ansible.builtin.blockinfile:
+    path: "/var/named/zones/{{ dns_domain }}.zone"
+    marker: "; {mark} OCP NODE A RECORDS"
+    block: |
+      {% for host in dhcp_host_list %}
+      {{ host.hostname.split('.')[0] }}    IN  A  {{ host.ip }}
+      {% endfor %}
+
+# --------------------------------------------------------
+# 4 - Update reverse zone with PTR records
+# --------------------------------------------------------
+- name: "Update reverse zone with PTR records"
+  ansible.builtin.blockinfile:
+    path: "/var/named/zones/{{ dns_domain }}.rev"
+    marker: "; {mark} OCP NODE PTR RECORDS"
+    block: |
+      {% for host in dhcp_host_list %}
+      {{ host.ip.split('.')[-1] }}    IN  PTR  {{ host.hostname }}.
+      {% endfor %}
+
+# --------------------------------------------------------
+# 5 - Increment serial in zone files
+# --------------------------------------------------------
+- name: "Increment serial in forward zone"
+  ansible.builtin.shell: |
+    serial=$(grep -oP '\d{10}' /var/named/zones/{{ dns_domain }}.zone | head -1)
+    new_serial=$((serial + 1))
+    sed -i "s/$serial/$new_serial/" /var/named/zones/{{ dns_domain }}.zone
+  changed_when: true
+
+- name: "Increment serial in reverse zone"
+  ansible.builtin.shell: |
+    serial=$(grep -oP '\d{10}' /var/named/zones/{{ dns_domain }}.rev | head -1)
+    new_serial=$((serial + 1))
+    sed -i "s/$serial/$new_serial/" /var/named/zones/{{ dns_domain }}.rev
+  changed_when: true
+
+# --------------------------------------------------------
+# 6 - Validate and restart named
+# --------------------------------------------------------
+- name: "Check named.conf syntax"
+  ansible.builtin.command: named-checkconf /etc/named.conf
+  changed_when: false
+
+- name: "Check forward zone syntax"
+  ansible.builtin.command: "named-checkzone {{ dns_domain }} /var/named/zones/{{ dns_domain }}.zone"
+  changed_when: false
+
+- name: "Check reverse zone syntax"
+  ansible.builtin.command: "named-checkzone {{ bastion_ip.split('.')[2] }}.{{ bastion_ip.split('.')[1] }}.{{ bastion_ip.split('.')[0] }}.in-addr.arpa /var/named/zones/{{ dns_domain }}.rev"
+  changed_when: false
+
+- name: "Restart named"
+  ansible.builtin.systemd:
+    name: named
+    state: restarted
+
+# --------------------------------------------------------
+# 7 - Test DNS resolution
+# --------------------------------------------------------
+- name: "Test A record resolution"
+  ansible.builtin.command: "dig @{{ bastion_ip }} {{ item.hostname }} +short"
+  register: dig_result
+  changed_when: false
+  loop: "{{ dhcp_host_list }}"
+  loop_control:
+    label: "{{ item.hostname }}"
+
+- name: "DNS A Record Test Results"
+  ansible.builtin.debug:
+    msg: "{{ item.item.hostname }} → {{ item.stdout | default('FAILED') }}"
+  loop: "{{ dig_result.results }}"
+  loop_control:
+    label: "{{ item.item.hostname }}"
