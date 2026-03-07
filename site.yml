@@ -99,37 +99,39 @@
           {% endfor %}
         dest: "/home/saad/ocp-vcenter-ansible/mac_addresses.txt"
         force: true
-
     # --------------------------------------------------------
-    # PHASE 5: PowerOn Bastion
+    # PHASE 5: Check Status PowerOn Bastion
     # --------------------------------------------------------
-    - name: "PHASE 4 - Power On Bastion"
-      ansible.builtin.pause:
-        prompt: "Do you want to power on Bastion VM? (yes/no)"
-      register: poweron_answer
-
-    - name: "Power On Bastion"
-      community.vmware.vmware_guest_powerstate:
+    - name: "Check if Bastion is already powered on"
+      community.vmware.vmware_guest_info:
         hostname: "{{ vcenter_hostname }}"
         username: "{{ vcenter_username }}"
         password: "{{ vcenter_password }}"
         validate_certs: "{{ vcenter_validate_certs }}"
         datacenter: "{{ vcenter_datacenter }}"
         name: "{{ vm_name_prefix }}-Bastion1"
-        state: powered-on
-      when: poweron_answer.user_input | lower == "yes"
+      register: bastion_info
 
+    - name: "Ask to power on Bastion"
+      ansible.builtin.pause:
+        prompt: "Power on Bastion VM now? (yes/no)"
+      register: poweron_answer
+      when: bastion_info.instance.hw_power_status != "poweredOn"    
+# ------------------------------------------------------------------------------
+# Bastion IP Mandatory
+#--------------------------------------------------------------------------------
     - name: "Waiting — complete Bastion OS installation then press Enter"
       ansible.builtin.pause:
-        prompt: |
-          ======================================================
-          Bastion VM is powered on.
-          1. Complete RHEL9 installation via vSphere console
-          2. Assign a static IP to Bastion
-          3. Once Bastion is up, enter its IP address below
-          ======================================================
-          Enter Bastion IP address
+        prompt: "Enter Bastion IP address"
       register: bastion_ip_input
+      until: bastion_ip_input.user_input | trim != ""
+      retries: 5
+      delay: 0
+
+    - name: "Fail if bastion IP is empty"
+      ansible.builtin.fail:
+        msg: "Bastion IP cannot be empty — please re-run the playbook"
+      when: bastion_ip_input.user_input | trim == ""
  
     - name: "Save Bastion IP for later tasks"
       ansible.builtin.set_fact:
