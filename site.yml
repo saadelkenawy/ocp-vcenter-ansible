@@ -184,6 +184,9 @@
     
     - name: "Configure DHCP"
       ansible.builtin.include_tasks: tasks/configure_dhcp.yml
+
+    - name: "Update DNS Zones"
+      ansible.builtin.include_tasks: tasks/update_dns_zones.yml
     
     # --------------------------------------------------------
     # PHASE 7: Summary
