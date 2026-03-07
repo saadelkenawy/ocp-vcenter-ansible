@@ -177,6 +177,9 @@
   tasks:
     - name: "Run Bastion configuration tasks"
       ansible.builtin.include_tasks: tasks/configure_bastion.yml
+
+    - name: "Configure DNS"
+      ansible.builtin.include_tasks: tasks/configure_dns.yml
     
     # --------------------------------------------------------
     # PHASE 7: Summary
