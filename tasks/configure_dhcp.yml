@@ -75,7 +75,6 @@
 - name: "Set network facts"
   ansible.builtin.set_fact:
     bastion_gateway: "{{ gateway_result.stdout | trim }}"
-    bastion_bc: "{{ broadcast_result.stdout | trim }}"
     subnet_network: "{{ bastion_ip | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.\\d+', '\\1.0') }}"
     subnet_netmask: "255.255.255.0"
 
@@ -118,6 +117,32 @@
 # --------------------------------------------------------
 # 6 - Create /etc/dhcp/dhcpd.conf
 # --------------------------------------------------------
+- name: "Generate DHCP static reservations"
+  ansible.builtin.shell: |
+    python3 -c "
+    import json
+    macs = {{ mac_addresses | to_json }}
+    bastion_ip = '{{ bastion_ip }}'
+    domain = '{{ dhcp_domain }}'
+    prefix = '.'.join(bastion_ip.split('.')[:3])
+    output = []
+    index = 50
+    for vm_name, mac in macs.items():
+        if 'Bastion' in vm_name:
+            continue
+        short_name = vm_name.split('-')[-1].lower()
+        ip = f'{prefix}.{index}'
+        output.append(f'host {vm_name} {{')
+        output.append(f'  hardware ethernet {mac};')
+        output.append(f'  fixed-address {ip};')
+        output.append(f'  option host-name \"{short_name}.{domain}\";')
+        output.append(f'}}')
+        index += 1
+    print('\n'.join(output))
+    "
+  register: dhcp_reservations
+  changed_when: false
+
 - name: "Configure /etc/dhcp/dhcpd.conf"
   ansible.builtin.copy:
     dest: /etc/dhcp/dhcpd.conf
@@ -150,17 +175,7 @@
       # -------------------------------
       # Static IP Allocations
       # -------------------------------
-      {% set ns = namespace(index=50) %}
-      {% for vm_name, mac in mac_addresses.items() %}
-      {% if 'Bastion' not in vm_name %}
-      host {{ vm_name }} {
-        hardware ethernet {{ mac }};
-        fixed-address {{ subnet_network | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.0', '\\1.' + ns.index | string) }};
-        option host-name "{{ vm_name | regex_replace('^.+-OCP-Test-', '') | lower }}.{{ dhcp_domain }}";
-      }
-      {% set ns.index = ns.index + 1 %}
-      {% endif %}
-      {% endfor %}
+      {{ dhcp_reservations.stdout }}
 # --------------------------------------------------------
 # 7 - Enable and restart dhcpd
 # --------------------------------------------------------
