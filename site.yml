@@ -97,7 +97,7 @@
           {% for result in vm_info.results %}
           {{ vm_name_prefix }}-{{ result.item.role }}{{ result.item.index }}: {{ result.instance.hw_eth0.macaddress | default('N/A') }}
           {% endfor %}
-        dest: "/home/saad/ocp-vcenter-ansible/mac_addresses.txt"
+        dest: "/home/{{ local_user }}/ocp-vcenter-ansible/mac_addresses.txt"
         force: true
     # --------------------------------------------------------
     # PHASE 5: Check Status PowerOn Bastion
