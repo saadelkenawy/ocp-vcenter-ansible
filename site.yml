@@ -182,6 +182,9 @@
     - name: "Configure NTP"
       ansible.builtin.include_tasks: tasks/configure_ntp.yml
     
+    - name: "Configure DHCP"
+      ansible.builtin.include_tasks: tasks/configure_dhcp.yml
+    
     # --------------------------------------------------------
     # PHASE 7: Summary
     # --------------------------------------------------------
