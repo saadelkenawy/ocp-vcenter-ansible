@@ -139,17 +139,11 @@
       ansible.builtin.debug:
         msg: "Bastion IP set to: {{ bastion_ip }} — ready for next tasks"
 
-    - name: "Save Bastion IP to file"
-      ansible.builtin.copy:
-        content: "bastion_ip: {{ bastion_ip }}\n"
-        dest: "/home/saad/ocp-vcenter-ansible/bastion_ip.txt"
-        force: true
-
     - name: "Test connectivity to Bastion"
       ansible.builtin.wait_for:
         host: "{{ bastion_ip }}"
         port: 22
-        timeout: 300
+        timeout: 600
         msg: "Waiting for Bastion SSH to become available..."
 
     # --------------------------------------------------------
