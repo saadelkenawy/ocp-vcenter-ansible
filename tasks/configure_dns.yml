@@ -1,6 +1,16 @@
 # --------------------------------------------------------
 # 1 - Gather domain and network info
 # --------------------------------------------------------
+- name: "Load bastion IP from file"
+  ansible.builtin.slurp:
+    src: /home/saad/ocp-vcenter-ansible/bastion_ip.txt
+  register: bastion_ip_file
+  delegate_to: localhost
+
+- name: "Set bastion_ip fact"
+  ansible.builtin.set_fact:
+    bastion_ip: "{{ bastion_ip_file.content | b64decode | regex_search('bastion_ip: (.+)', '\\1') | first | trim }}"
+
 - name: "Get domain name from hostname"
   ansible.builtin.command: hostname -f
   register: bastion_fqdn
