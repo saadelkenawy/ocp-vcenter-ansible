@@ -117,29 +117,31 @@
 # --------------------------------------------------------
 # 6 - Create /etc/dhcp/dhcpd.conf
 # --------------------------------------------------------
+- name: "Copy reservation generator script to bastion"
+  ansible.builtin.copy:
+    dest: /tmp/gen_dhcp.py
+    content: |
+      import json, sys
+      macs = json.load(sys.stdin)
+      bastion_ip = sys.argv[1]
+      domain = sys.argv[2]
+      prefix = '.'.join(bastion_ip.split('.')[:3])
+      index = 50
+      for vm_name, mac in macs.items():
+          if 'Bastion' in vm_name:
+              continue
+          short_name = vm_name.split('-')[-1].lower()
+          ip = prefix + '.' + str(index)
+          print('host ' + vm_name + ' {')
+          print('  hardware ethernet ' + mac + ';')
+          print('  fixed-address ' + ip + ';')
+          print('  option host-name "' + short_name + '.' + domain + '";')
+          print('}')
+          index += 1
+
 - name: "Generate DHCP static reservations"
   ansible.builtin.shell: |
-    python3 -c "
-    import json
-    macs = {{ mac_addresses | to_json }}
-    bastion_ip = '{{ bastion_ip }}'
-    domain = '{{ dhcp_domain }}'
-    prefix = '.'.join(bastion_ip.split('.')[:3])
-    output = []
-    index = 50
-    for vm_name, mac in macs.items():
-        if 'Bastion' in vm_name:
-            continue
-        short_name = vm_name.split('-')[-1].lower()
-        ip = f'{prefix}.{index}'
-        output.append(f'host {vm_name} {{')
-        output.append(f'  hardware ethernet {mac};')
-        output.append(f'  fixed-address {ip};')
-        output.append(f'  option host-name \"{short_name}.{domain}\";')
-        output.append(f'}}')
-        index += 1
-    print('\n'.join(output))
-    "
+    echo '{{ mac_addresses | to_json }}' | python3 /tmp/gen_dhcp.py {{ bastion_ip }} {{ dhcp_domain }}
   register: dhcp_reservations
   changed_when: false
 
