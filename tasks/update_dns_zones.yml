@@ -82,6 +82,64 @@
       {{ host.ip.split('.')[-1] }}    IN  PTR  {{ host.hostname }}.
       {% endfor %}
 
+
+
+# # --------------------------------------------------------
+# # - Ask for OCP VIPs
+# # --------------------------------------------------------
+# - name: "Ask for OCP cluster name"
+#   ansible.builtin.pause:
+#     prompt: "Enter OCP cluster name (e.g. ocp)"
+#   register: cluster_name_input
+#   until: cluster_name_input.user_input | trim != ""
+#   retries: 5
+#   delay: 0
+
+# - name: "Ask for API VIP"
+#   ansible.builtin.pause:
+#     prompt: "Enter API VIP IP address (e.g. 192.168.110.60)"
+#   register: api_vip_input
+#   until: api_vip_input.user_input | trim != ""
+#   retries: 5
+#   delay: 0
+
+# - name: "Ask for Ingress VIP"
+#   ansible.builtin.pause:
+#     prompt: "Enter Ingress VIP IP address (e.g. 192.168.110.61)"
+#   register: ingress_vip_input
+#   until: ingress_vip_input.user_input | trim != ""
+#   retries: 5
+#   delay: 0
+
+# - name: "Set VIP facts"
+#   ansible.builtin.set_fact:
+#     ocp_cluster: "{{ cluster_name_input.user_input | trim }}"
+#     api_vip: "{{ api_vip_input.user_input | trim }}"
+#     ingress_vip: "{{ ingress_vip_input.user_input | trim }}"
+
+# # --------------------------------------------------------
+# # - Add OCP VIP records to forward zone
+# # --------------------------------------------------------
+# - name: "Add OCP VIP A records to forward zone"
+#   ansible.builtin.blockinfile:
+#     path: "/var/named/zones/{{ dns_domain }}.zone"
+#     marker: "; {mark} OCP VIP RECORDS"
+#     block: |
+#       api.{{ ocp_cluster }}        IN  A  {{ api_vip }}
+#       api-int.{{ ocp_cluster }}    IN  A  {{ api_vip }}
+#       *.apps.{{ ocp_cluster }}     IN  A  {{ ingress_vip }}
+
+# # --------------------------------------------------------
+# # - Add OCP VIP PTR records to reverse zone
+# # --------------------------------------------------------
+# - name: "Add OCP VIP PTR records to reverse zone"
+#   ansible.builtin.blockinfile:
+#     path: "/var/named/zones/{{ dns_domain }}.rev"
+#     marker: "; {mark} OCP VIP PTR RECORDS"
+#     block: |
+#       {{ api_vip.split('.')[-1] }}      IN  PTR  api.{{ ocp_cluster }}.{{ dns_domain }}.
+#       {{ ingress_vip.split('.')[-1] }}  IN  PTR  *.apps.{{ ocp_cluster }}.{{ dns_domain }}.
+
 # --------------------------------------------------------
 # 5 - Increment serial in zone files
 # --------------------------------------------------------
