@@ -47,17 +47,19 @@
     print(json.dumps(macs))
     "
   register: mac_parse_result
-  delegate_to: localhost
   changed_when: false
 
 - name: "Set MAC addresses fact"
   ansible.builtin.set_fact:
     mac_addresses: "{{ mac_parse_result.stdout | from_json }}"
-  delegate_to: localhost
+  
 
-- name: "Share mac_addresses with bastion host"
-  ansible.builtin.set_fact:
-    mac_addresses: "{{ hostvars['localhost'].mac_addresses }}"
+- name: "Copy mac_addresses.txt to bastion"
+  ansible.builtin.copy:
+    src: "/home/{{ local_user }}/ocp-vcenter-ansible/mac_addresses.txt"
+    dest: "/tmp/mac_addresses.txt"
+    mode: "0644"
+  
 # --------------------------------------------------------
 # 3 - Gather network info from bastion
 # --------------------------------------------------------
