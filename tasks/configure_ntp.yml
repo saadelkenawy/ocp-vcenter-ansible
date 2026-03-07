@@ -1,0 +1,171 @@
+---
+# ============================================================
+# tasks/configure_ntp.yml
+# Configure Chrony NTP on Bastion
+# ============================================================
+
+# --------------------------------------------------------
+# 1 - Ask NTP type
+# --------------------------------------------------------
+- name: "Ask NTP server type"
+  ansible.builtin.pause:
+    prompt: |
+      Select NTP server type:
+      1 - Public  (e.g. 0.africa.pool.ntp.org)
+      2 - Internal (e.g. bastion.nbe.gts or IP)
+      Enter 1 or 2
+  register: ntp_type_input
+  until: ntp_type_input.user_input | trim in ['1', '2']
+  retries: 5
+  delay: 0
+  delegate_to: localhost
+
+- name: "Fail if invalid NTP type"
+  ansible.builtin.fail:
+    msg: "Invalid selection — must be 1 or 2"
+  when: ntp_type_input.user_input | trim not in ['1', '2']
+
+# --------------------------------------------------------
+# 2 - Ask for NTP servers (mandatory, multi-entry)
+# --------------------------------------------------------
+- name: "Ask for NTP servers (public)"
+  ansible.builtin.pause:
+    prompt: |
+      Enter public NTP servers (space-separated, mandatory)
+      Example: 0.africa.pool.ntp.org 1.africa.pool.ntp.org
+  register: ntp_servers_input
+  when: ntp_type_input.user_input | trim == '1'
+  until: ntp_servers_input.user_input | trim != ""
+  retries: 5
+  delay: 0
+  delegate_to: localhost
+
+- name: "Ask for NTP servers (internal)"
+  ansible.builtin.pause:
+    prompt: |
+      Enter internal NTP servers (space-separated, mandatory)
+      Example: server.base.domain 192.168.xx.xx
+  register: ntp_servers_input
+  when: ntp_type_input.user_input | trim == '2'
+  until: ntp_servers_input.user_input | trim != ""
+  retries: 5
+  delay: 0
+  delegate_to: localhost
+
+- name: "Fail if NTP servers empty"
+  ansible.builtin.fail:
+    msg: "NTP server(s) cannot be empty — please re-run"
+  when: ntp_servers_input.user_input | trim == ""
+
+- name: "Set NTP servers list fact"
+  ansible.builtin.set_fact:
+    ntp_servers: "{{ ntp_servers_input.user_input | trim | split(' ') | select('ne', '') | list }}"
+
+# --------------------------------------------------------
+# 3 - Ask for allowed client networks (multi-entry)
+# --------------------------------------------------------
+- name: "Ask for allowed NTP client networks"
+  ansible.builtin.pause:
+    prompt: |
+      Enter networks allowed to use this NTP server (space-separated)
+      Example: 192.168.xx.0/24 192.168.xx.0/24
+      Press Enter to allow localhost only
+  register: ntp_allow_input
+  delegate_to: localhost
+
+- name: "Set allowed networks fact"
+  ansible.builtin.set_fact:
+    ntp_allow_networks: "{{ ntp_allow_input.user_input | trim | split(' ') | select('ne', '') | list }}"
+
+# --------------------------------------------------------
+# 4 - Configure /etc/chrony.conf
+# --------------------------------------------------------
+- name: "Configure /etc/chrony.conf"
+  ansible.builtin.copy:
+    dest: /etc/chrony.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # NTP Servers
+      {% for server in ntp_servers %}
+      server {{ server }} iburst
+      {% endfor %}
+
+      # Record the rate at which the system clock gains/losses time
+      driftfile /var/lib/chrony/drift
+
+      # Allow the system clock to be stepped in the first three updates
+      makestep 1.0 3
+
+      # Enable kernel synchronization of the real-time clock (RTC)
+      rtcsync
+
+      # Allow NTP client access from local networks
+      {% if ntp_allow_networks | length > 0 %}
+      {% for network in ntp_allow_networks %}
+      allow {{ network }}
+      {% endfor %}
+      {% else %}
+      # No client networks defined - localhost only
+      {% endif %}
+
+      # Serve time even if not synchronized to a time source
+      local stratum 10
+
+      # Specify file containing keys for NTP authentication
+      keyfile /etc/chrony.keys
+
+      # Get TAI-UTC offset and leap seconds from the system tz database
+      leapsectz right/UTC
+
+      # Specify directory for log files
+      logdir /var/log/chrony
+
+# --------------------------------------------------------
+# 5 - Enable and restart chronyd
+# --------------------------------------------------------
+- name: "Enable and restart chronyd"
+  ansible.builtin.systemd:
+    name: chronyd
+    state: restarted
+    enabled: true
+
+# --------------------------------------------------------
+# 6 - Test NTP sync
+# --------------------------------------------------------
+- name: "Wait for chrony to sync (10 seconds)"
+  ansible.builtin.pause:
+    seconds: 10
+
+- name: "Check chrony tracking"
+  ansible.builtin.command: chronyc tracking
+  register: chrony_tracking
+  changed_when: false
+
+- name: "Check chrony sources"
+  ansible.builtin.command: chronyc sources -v
+  register: chrony_sources
+  changed_when: false
+
+- name: "NTP Sync Results"
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "  NTP Configuration Complete"
+      - "=================================================="
+      - "  Type      : {{ 'Public' if ntp_type_input.user_input | trim == '1' else 'Internal' }}"
+      - "  Servers   : {{ ntp_servers | join(', ') }}"
+      - "  Networks  : {{ ntp_allow_networks | join(', ') if ntp_allow_networks | length > 0 else 'localhost only' }}"
+      - "=================================================="
+      - "  Chrony Tracking:"
+      - "{{ chrony_tracking.stdout }}"
+      - "=================================================="
+      - "  Chrony Sources:"
+      - "{{ chrony_sources.stdout }}"
+      - "=================================================="
+
+- name: "Fail if chrony not syncing"
+  ansible.builtin.fail:
+    msg: "Chrony is not syncing — check NTP server connectivity"
+  when: "'Not synchronised' in chrony_tracking.stdout"
