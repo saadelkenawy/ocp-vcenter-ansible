@@ -40,7 +40,7 @@
 
 - name: "Save bastion network to bastion_ip.txt"
   ansible.builtin.lineinfile:
-    path: /home/{{ ansible_user }}/ocp-vcenter-ansible/bastion_ip.txt
+    path: /home/{{ local_user }}/ocp-vcenter-ansible/bastion_ip.txt
     line: "bastion_network: {{ bastion_network }}"
     state: present
   delegate_to: localhost
