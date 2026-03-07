@@ -1,0 +1,341 @@
+---
+# ============================================================
+# tasks/configure_haproxy_keepalived.yml
+# Configure HAProxy and Keepalived on Bastion
+# ============================================================
+
+#-----------------------------------------------------------
+# Install ansible.posix
+# This sets the kernel parameter that allows HAProxy to bind to VIP addresses
+# Without it, HAProxy will fail to start because it tries to bind to an IP that doesn't exist yet on the interface.
+#-----------------------------------------------------------
+- name: "Install ansible.posix collection"
+  ansible.builtin.command:
+    cmd: ansible-galaxy collection install ansible.posix
+  delegate_to: localhost
+  changed_when: false
+#-----------------------------------------------------------
+# Gather Facts
+#-----------------------------------------------------------
+- name: "Get network interface name"
+  ansible.builtin.shell: "ip route | grep default | awk '{print $5}'"
+  register: interface_result
+  changed_when: false
+
+- name: "Set interface fact"
+  ansible.builtin.set_fact:
+    bastion_interface: "{{ interface_result.stdout | trim }}"
+
+- name: "Display interface"
+  ansible.builtin.debug:
+    msg: "Network interface: {{ bastion_interface }}"
+
+
+# --------------------------------------------------------
+# 1 - Load bastion_ip
+# --------------------------------------------------------
+- name: "Load bastion_ip from file"
+  ansible.builtin.slurp:
+    src: "/home/{{ local_user }}/ocp-vcenter-ansible/bastion_ip.txt"
+  register: bastion_ip_file
+  delegate_to: localhost
+
+- name: "Set bastion_ip fact"
+  ansible.builtin.set_fact:
+    bastion_ip: "{{ bastion_ip_file.content | b64decode | regex_search('bastion_ip: (.+)', '\\1') | first | trim }}"
+
+# --------------------------------------------------------
+# 2 - Get network interface
+# --------------------------------------------------------
+- name: "Get network interface name"
+  ansible.builtin.shell: "ip route | grep default | awk '{print $5}'"
+  register: interface_result
+  changed_when: false
+
+- name: "Set interface fact"
+  ansible.builtin.set_fact:
+    bastion_interface: "{{ interface_result.stdout | trim }}"
+
+- name: "Display interface"
+  ansible.builtin.debug:
+    msg: "Network interface: {{ bastion_interface }}"
+
+# --------------------------------------------------------
+# 3 - Set VIP facts
+# --------------------------------------------------------
+- name: "Set VIP facts"
+  ansible.builtin.set_fact:
+    api_vip: "{{ bastion_ip | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.\\d+', '\\1.230') }}"
+    ingress_vip: "{{ bastion_ip | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.\\d+', '\\1.235') }}"
+
+- name: "Display VIPs"
+  ansible.builtin.debug:
+    msg:
+      - "API VIP    : {{ api_vip }}"
+      - "Ingress VIP: {{ ingress_vip }}"
+
+# --------------------------------------------------------
+# 4 - Load MAC addresses to get master/worker/bootstrap IPs
+# --------------------------------------------------------
+- name: "Parse hosts from dhcpd.conf"
+  ansible.builtin.shell: |
+    python3 -c "
+    import re, json
+    hosts = []
+    with open('/etc/dhcp/dhcpd.conf') as f:
+        content = f.read()
+    blocks = re.findall(
+        r'host\s+(\S+)\s*\{[^}]*hardware ethernet\s+([^;]+);[^}]*fixed-address\s+([^;]+);[^}]*option host-name\s+\"([^\"]+)\"',
+        content, re.DOTALL
+    )
+    for block in blocks:
+        hosts.append({
+            'vm':       block[0].strip(),
+            'mac':      block[1].strip(),
+            'ip':       block[2].strip(),
+            'hostname': block[3].strip()
+        })
+    print(json.dumps(hosts))
+    "
+  register: dhcp_hosts
+  changed_when: false
+
+- name: "Set dhcp hosts fact"
+  ansible.builtin.set_fact:
+    dhcp_host_list: "{{ dhcp_hosts.stdout | from_json }}"
+
+- name: "Set master, worker and bootstrap IP lists"
+  ansible.builtin.set_fact:
+    master_hosts: "{{ dhcp_host_list | selectattr('vm', 'search', 'Master') | list }}"
+    worker_hosts: "{{ dhcp_host_list | selectattr('vm', 'search', 'Worker') | list }}"
+    bootstrap_hosts: "{{ dhcp_host_list | selectattr('vm', 'search', 'bootstrap') | list }}"
+
+# --------------------------------------------------------
+# 5 - Configure Keepalived
+# --------------------------------------------------------
+- name: "Configure /etc/keepalived/keepalived.conf"
+  ansible.builtin.copy:
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: "0644"
+    force: true
+    content: |
+      global_defs {
+          router_id bastion
+      }
+
+      # API VIP - {{ api_vip }}
+      vrrp_instance VI_API {
+          state MASTER
+          interface {{ bastion_interface }}
+          virtual_router_id 51
+          priority 100
+          advert_int 1
+          authentication {
+              auth_type PASS
+              auth_pass ocp_api_pass
+          }
+          virtual_ipaddress {
+              {{ api_vip }}/24
+          }
+      }
+
+      # Ingress VIP - {{ ingress_vip }}
+      vrrp_instance VI_INGRESS {
+          state MASTER
+          interface {{ bastion_interface }}
+          virtual_router_id 52
+          priority 100
+          advert_int 1
+          authentication {
+              auth_type PASS
+              auth_pass ocp_ingress_pass
+          }
+          virtual_ipaddress {
+              {{ ingress_vip }}/24
+          }
+      }
+
+# --------------------------------------------------------
+# 6 - Configure HAProxy
+# --------------------------------------------------------
+- name: "Configure /etc/haproxy/haproxy.cfg"
+  ansible.builtin.copy:
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: "0644"
+    force: true
+    content: |
+      #---------------------------------------------------------------------
+      # Global settings
+      #---------------------------------------------------------------------
+      global
+          log         /dev/log local0
+          log         /dev/log local1 notice
+          chroot      /var/lib/haproxy
+          pidfile     /var/run/haproxy.pid
+          maxconn     4000
+          user        haproxy
+          group       haproxy
+          daemon
+          stats socket /var/lib/haproxy/stats
+
+      #---------------------------------------------------------------------
+      # Defaults
+      #---------------------------------------------------------------------
+      defaults
+          mode                    http
+          log                     global
+          option                  httplog
+          option                  dontlognull
+          option                  http-server-close
+          option                  forwardfor except 127.0.0.0/8
+          option                  redispatch
+          retries                 3
+          timeout http-request    10s
+          timeout queue           1m
+          timeout connect         10s
+          timeout client          1m
+          timeout server          1m
+          timeout http-keep-alive 10s
+          timeout check           10s
+          maxconn                 3000
+
+      #---------------------------------------------------------------------
+      # API - port 6443 (Masters + Bootstrap)
+      #---------------------------------------------------------------------
+      frontend api_frontend
+          bind {{ api_vip }}:6443
+          default_backend api_backend
+          mode tcp
+          option tcplog
+
+      backend api_backend
+          mode tcp
+          balance roundrobin
+      {% for host in bootstrap_hosts %}
+          server {{ host.vm }} {{ host.ip }}:6443 check
+      {% endfor %}
+      {% for host in master_hosts %}
+          server {{ host.vm }} {{ host.ip }}:6443 check
+      {% endfor %}
+
+      #---------------------------------------------------------------------
+      # MCS - port 22623 (Masters + Bootstrap)
+      #---------------------------------------------------------------------
+      frontend mcs_frontend
+          bind {{ api_vip }}:22623
+          default_backend mcs_backend
+          mode tcp
+          option tcplog
+
+      backend mcs_backend
+          mode tcp
+          balance roundrobin
+      {% for host in bootstrap_hosts %}
+          server {{ host.vm }} {{ host.ip }}:22623 check
+      {% endfor %}
+      {% for host in master_hosts %}
+          server {{ host.vm }} {{ host.ip }}:22623 check
+      {% endfor %}
+
+      #---------------------------------------------------------------------
+      # Ingress HTTP - port 80 (Workers)
+      #---------------------------------------------------------------------
+      frontend ingress_http_frontend
+          bind {{ ingress_vip }}:80
+          default_backend ingress_http_backend
+          mode tcp
+          option tcplog
+
+      backend ingress_http_backend
+          mode tcp
+          balance roundrobin
+      {% for host in worker_hosts %}
+          server {{ host.vm }} {{ host.ip }}:80 check
+      {% endfor %}
+
+      #---------------------------------------------------------------------
+      # Ingress HTTPS - port 443 (Workers)
+      #---------------------------------------------------------------------
+      frontend ingress_https_frontend
+          bind {{ ingress_vip }}:443
+          default_backend ingress_https_backend
+          mode tcp
+          option tcplog
+
+      backend ingress_https_backend
+          mode tcp
+          balance roundrobin
+      {% for host in worker_hosts %}
+          server {{ host.vm }} {{ host.ip }}:443 check
+      {% endfor %}
+
+# --------------------------------------------------------
+# 7 - Allow HAProxy to bind non-local IPs (VIPs)
+# --------------------------------------------------------
+- name: "Allow HAProxy to bind non-local addresses"
+  ansible.builtin.seboolean:
+    name: haproxy_connect_any
+    state: true
+    persistent: true
+  ignore_errors: true
+
+- name: "Set net.ipv4.ip_nonlocal_bind"
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: "1"
+    state: present
+    reload: true
+
+# --------------------------------------------------------
+# 8 - Enable and restart services
+# --------------------------------------------------------
+- name: "Enable and restart keepalived"
+  ansible.builtin.systemd:
+    name: keepalived
+    state: restarted
+    enabled: true
+
+- name: "Enable and restart haproxy"
+  ansible.builtin.systemd:
+    name: haproxy
+    state: restarted
+    enabled: true
+
+# --------------------------------------------------------
+# 9 - Verify VIPs are assigned
+# --------------------------------------------------------
+- name: "Check VIPs are assigned"
+  ansible.builtin.shell: "ip addr show {{ bastion_interface }}"
+  register: ip_addr_result
+  changed_when: false
+
+- name: "Verify API VIP"
+  ansible.builtin.fail:
+    msg: "API VIP {{ api_vip }} is NOT assigned to {{ bastion_interface }}"
+  when: api_vip not in ip_addr_result.stdout
+
+- name: "Verify Ingress VIP"
+  ansible.builtin.fail:
+    msg: "Ingress VIP {{ ingress_vip }} is NOT assigned to {{ bastion_interface }}"
+  when: ingress_vip not in ip_addr_result.stdout
+
+# --------------------------------------------------------
+# 10 - Summary
+# --------------------------------------------------------
+- name: "HAProxy & Keepalived Summary"
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "  HAProxy & Keepalived Configuration Complete"
+      - "=================================================="
+      - "  Interface : {{ bastion_interface }}"
+      - "  API VIP   : {{ api_vip }} (ports 6443, 22623)"
+      - "  Ingress VIP: {{ ingress_vip }} (ports 80, 443)"
+      - "  Masters   : {{ master_hosts | map(attribute='ip') | list | join(', ') }}"
+      - "  Workers   : {{ worker_hosts | map(attribute='ip') | list | join(', ') }}"
+      - "  Bootstrap : {{ bootstrap_hosts | map(attribute='ip') | list | join(', ') }}"
+      - "=================================================="
