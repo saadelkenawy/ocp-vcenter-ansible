@@ -24,12 +24,23 @@
   ansible.builtin.debug:
     msg: "Detected domain: {{ dns_domain }}"
 
+# --------------------------------------------------------
+# 2 - Ask for Network and Mandatory add it 
+# --------------------------------------------------------
 - name: "Ask for network"
   ansible.builtin.pause:
     prompt: "Enter bastion network in CIDR format (e.g. 192.168.110.0/24)"
   register: network_input
+  until: network_input.user_input | trim != ""
+  retries: 5
+  delay: 0
   delegate_to: localhost
 
+- name: "Fail if network is empty"
+  ansible.builtin.fail:
+    msg: "Network CIDR cannot be empty — please re-run the playbook"
+  when: network_input.user_input | trim == ""
+  
 - name: "Set bastion network fact"
   ansible.builtin.set_fact:
     bastion_network: "{{ network_input.user_input | trim }}"
@@ -256,7 +267,40 @@
       - "  Rev  file : /var/named/zones/{{ dns_domain }}.rev"
       - "=================================================="
 
+# --------------------------------------------------------
+# 10 - Test DNS
+# --------------------------------------------------------
+- name: "Test forward DNS resolution - bastion"
+  ansible.builtin.command: "dig @{{ bastion_ip }} bastion.{{ dns_domain }} +short"
+  register: dig_forward
+  changed_when: false
 
+- name: "Test reverse DNS resolution"
+  ansible.builtin.command: "dig @{{ bastion_ip }} -x {{ bastion_ip }} +short"
+  register: dig_reverse
+  changed_when: false
+
+- name: "Test forwarder resolution - external"
+  ansible.builtin.command: "dig @{{ bastion_ip }} google.com +short"
+  register: dig_external
+  changed_when: false
+  ignore_errors: true
+
+- name: "DNS Test Results"
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "  DNS Test Results"
+      - "=================================================="
+      - "  Forward (bastion.{{ dns_domain }}): {{ dig_forward.stdout | default('FAILED') }}"
+      - "  Reverse ({{ bastion_ip }}):         {{ dig_reverse.stdout | default('FAILED') }}"
+      - "  External (google.com):              {{ dig_external.stdout | default('NO INTERNET - OK for air-gap') }}"
+      - "=================================================="
+
+- name: "Fail if forward DNS not resolving"
+  ansible.builtin.fail:
+    msg: "Forward DNS resolution failed for bastion.{{ dns_domain }}"
+  when: dig_forward.stdout == ""
 
 
 
