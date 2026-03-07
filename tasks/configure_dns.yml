@@ -1,0 +1,256 @@
+# --------------------------------------------------------
+# 1 - Gather domain and network info
+# --------------------------------------------------------
+- name: "Get domain name from hostname"
+  ansible.builtin.command: hostname -f
+  register: bastion_fqdn
+  changed_when: false
+
+- name: "Extract domain from FQDN"
+  ansible.builtin.set_fact:
+    dns_domain: "{{ bastion_fqdn.stdout.split('.')[1:] | join('.') }}"
+
+- name: "Display detected domain"
+  ansible.builtin.debug:
+    msg: "Detected domain: {{ dns_domain }}"
+
+- name: "Get network info using ipcalc"
+  ansible.builtin.shell: |
+    ipcalc -n -p {{ bastion_ip }} | awk -F= '{print $2}' | paste - - | awk '{print $1"/"$2}'
+  register: ipcalc_result
+  changed_when: false
+
+- name: "Save bastion network fact"
+  ansible.builtin.set_fact:
+    bastion_network: "{{ ipcalc_result.stdout | trim }}"
+
+- name: "Display detected network"
+  ansible.builtin.debug:
+    msg: "Detected network: {{ bastion_network }}"
+
+- name: "Save bastion network to bastion_ip.txt"
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/ocp-vcenter-ansible/bastion_ip.txt
+    line: "bastion_network: {{ bastion_network }}"
+    state: present
+  delegate_to: localhost
+
+- name: "Get reverse zone (first 3 octets reversed)"
+  ansible.builtin.set_fact:
+    reverse_zone: "{{ bastion_ip.split('.')[2] }}.{{ bastion_ip.split('.')[1] }}.{{ bastion_ip.split('.')[0] }}"
+
+# --------------------------------------------------------
+# 2 - Ask for forwarders
+# --------------------------------------------------------
+- name: "Ask for DNS forwarder 1"
+  ansible.builtin.pause:
+    prompt: "Enter DNS forwarder 1 IP "
+  register: forwarder1_input
+  delegate_to: localhost
+
+- name: "Ask for DNS forwarder 2"
+  ansible.builtin.pause:
+    prompt: "Enter DNS forwarder 2 IP"
+  register: forwarder2_input
+  delegate_to: localhost
+
+- name: "Set forwarder facts"
+  ansible.builtin.set_fact:
+    dns_forwarder1: "{{ forwarder1_input.user_input }}"
+    dns_forwarder2: "{{ forwarder2_input.user_input }}"
+
+# --------------------------------------------------------
+# 3 - Create log and zone directories
+# --------------------------------------------------------
+- name: "Create /var/log/named directory"
+  ansible.builtin.file:
+    path: /var/log/named
+    state: directory
+    owner: named
+    group: named
+    mode: "0750"
+
+- name: "Create /var/named/zones directory"
+  ansible.builtin.file:
+    path: /var/named/zones
+    state: directory
+    owner: named
+    group: named
+    mode: "0750"
+
+# --------------------------------------------------------
+# 4 - Generate rndc key
+# --------------------------------------------------------
+- name: "Generate rndc key"
+  ansible.builtin.shell: |
+    rndc-confgen -a
+    chmod 640 /etc/rndc.key
+    chown named:named /etc/rndc.key
+  args:
+    creates: /etc/rndc.key
+
+# --------------------------------------------------------
+# 5 - Configure /etc/named.conf
+# --------------------------------------------------------
+- name: "Configure /etc/named.conf"
+  ansible.builtin.copy:
+    dest: /etc/named.conf
+    owner: root
+    group: named
+    mode: "0640"
+    content: |
+      options {
+          listen-on port 53 { 127.0.0.1; {{ bastion_ip }}; };
+          listen-on-v6 port 53 { none; };
+          directory       "/var/named";
+          dump-file       "/var/named/data/cache_dump.db";
+          statistics-file "/var/named/data/named_stats.txt";
+          memstatistics-file "/var/named/data/named_mem_stats.txt";
+
+          forwarders {
+              {{ dns_forwarder1 }};
+              {{ dns_forwarder2 }};
+          };
+          forward only;
+
+          recursion yes;
+          allow-recursion { {{ bastion_network }}; };
+          allow-query     { {{ bastion_network }}; };
+          allow-query-cache { {{ bastion_network }}; };
+          allow-transfer  { none; };
+
+          dnssec-validation no;
+
+          managed-keys-directory "/var/named/dynamic";
+          geoip-directory  "/usr/share/GeoIP";
+
+          pid-file "/run/named/named.pid";
+          session-keyfile "/run/named/session.key";
+
+          include "/etc/crypto-policies/back-ends/bind.config";
+      };
+
+      logging {
+          channel default_log {
+              file "/var/log/named/named.log" versions 5 size 50m;
+              print-time yes;
+              print-severity yes;
+              print-category yes;
+          };
+          category default { default_log; };
+          category queries { default_log; };
+      };
+
+      zone "." IN {
+          type hint;
+          file "named.ca";
+      };
+
+      include "/etc/named.rfc1912.zones";
+      include "/etc/named.root.key";
+      include "/etc/named/{{ dns_domain }}.conf";
+
+# --------------------------------------------------------
+# 6 - Create /etc/named/<domain>.conf
+# --------------------------------------------------------
+- name: "Create /etc/named/{{ dns_domain }}.conf"
+  ansible.builtin.copy:
+    dest: "/etc/named/{{ dns_domain }}.conf"
+    owner: root
+    group: named
+    mode: "0640"
+    content: |
+      zone "{{ dns_domain }}" IN {
+          type master;
+          file "zones/{{ dns_domain }}.zone";
+      };
+      zone "{{ reverse_zone }}.in-addr.arpa" IN {
+          type master;
+          file "zones/{{ dns_domain }}.rev";
+      };
+
+# --------------------------------------------------------
+# 7 - Create forward zone file
+# --------------------------------------------------------
+- name: "Create forward zone file /var/named/zones/{{ dns_domain }}.zone"
+  ansible.builtin.copy:
+    dest: "/var/named/zones/{{ dns_domain }}.zone"
+    owner: root
+    group: named
+    mode: "0640"
+    content: |
+      $TTL 1W
+      @   IN  SOA  bastion.{{ dns_domain }}.  root.{{ dns_domain }}. (
+                      2024010101  ; serial
+                      3H          ; refresh
+                      30M         ; retry
+                      2W          ; expiry
+                      1W )        ; minimum
+
+          IN  NS   bastion.{{ dns_domain }}.
+
+      bastion     IN  A  {{ bastion_ip }}
+
+      ; Add your OCP node records below
+      ; api.ocp        IN  A  <api-vip>
+      ; api-int.ocp    IN  A  <api-vip>
+      ; *.apps.ocp     IN  A  <ingress-vip>
+
+# --------------------------------------------------------
+# 8 - Create reverse zone file
+# --------------------------------------------------------
+- name: "Create reverse zone file /var/named/zones/{{ dns_domain }}.rev"
+  ansible.builtin.copy:
+    dest: "/var/named/zones/{{ dns_domain }}.rev"
+    owner: root
+    group: named
+    mode: "0640"
+    content: |
+      $TTL 1W
+      @   IN  SOA  bastion.{{ dns_domain }}.  root.{{ dns_domain }}. (
+                      2024010101  ; serial
+                      3H          ; refresh
+                      30M         ; retry
+                      2W          ; expiry
+                      1W )        ; minimum
+
+          IN  NS   bastion.{{ dns_domain }}.
+
+      ; Add your reverse records below
+      ; 10  IN  PTR  api.ocp.{{ dns_domain }}.
+
+# --------------------------------------------------------
+# 9 - Restart and enable named
+# --------------------------------------------------------
+- name: "Check named.conf syntax"
+  ansible.builtin.command: named-checkconf /etc/named.conf
+  changed_when: false
+
+- name: "Enable and restart named service"
+  ansible.builtin.systemd:
+    name: named
+    state: restarted
+    enabled: true
+
+- name: "DNS Configuration Summary"
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "  DNS Configuration Complete"
+      - "=================================================="
+      - "  Domain    : {{ dns_domain }}"
+      - "  Bastion IP: {{ bastion_ip }}"
+      - "  Network   : {{ bastion_network }}"
+      - "  Forwarders: {{ dns_forwarder1 }}, {{ dns_forwarder2 }}"
+      - "  Zone file : /var/named/zones/{{ dns_domain }}.zone"
+      - "  Rev  file : /var/named/zones/{{ dns_domain }}.rev"
+      - "=================================================="
+
+
+
+
+
+
+
+
+
