@@ -32,6 +32,12 @@
   register: mac_file
   delegate_to: localhost
 
+- name: "Copy mac_addresses.txt to bastion"
+  ansible.builtin.copy:
+    src: "/home/{{ local_user }}/ocp-vcenter-ansible/mac_addresses.txt"
+    dest: "/tmp/mac_addresses.txt"
+    mode: "0644"
+
 - name: "Parse MAC addresses using shell"
   ansible.builtin.shell: |
     python3 -c "
