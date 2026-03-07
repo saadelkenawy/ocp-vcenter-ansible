@@ -3,7 +3,7 @@
 # --------------------------------------------------------
 - name: "Load bastion IP from file"
   ansible.builtin.slurp:
-    src: /home/saad/ocp-vcenter-ansible/bastion_ip.txt
+    src: /home/{{ local_user }}/ocp-vcenter-ansible/bastion_ip.txt
   register: bastion_ip_file
   delegate_to: localhost
 
