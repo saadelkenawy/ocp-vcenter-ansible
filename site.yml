@@ -187,6 +187,9 @@
 
     - name: "Update DNS Zones"
       ansible.builtin.include_tasks: tasks/update_dns_zones.yml
+
+    - name: "Configure HAProxy and Keepalived"
+      ansible.builtin.include_tasks: tasks/configure_haproxy_keepalived.yml
     
     # --------------------------------------------------------
     # PHASE 7: Summary
