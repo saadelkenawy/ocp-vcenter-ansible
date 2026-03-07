@@ -23,6 +23,11 @@ iso_path_rhel9: "Enawy-Infrasturcture ISOs/rhel-9.6-x86_64-dvd.iso"
 vm_name_prefix: "Enawy-OCP-Test"
 
 # ============================================================
+# Local User running on ansible controller
+# ============================================================
+
+local_user: "saad"
+# ============================================================
 # VM Definitions (one entry per VM)
 # ============================================================
 vms:
