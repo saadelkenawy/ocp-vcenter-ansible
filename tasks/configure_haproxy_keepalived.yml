@@ -134,7 +134,7 @@
           advert_int 1
           authentication {
               auth_type PASS
-              auth_pass ocp_api_pass
+              auth_pass nbe_api_pass
           }
           virtual_ipaddress {
               {{ api_vip }}/24 dev {{ bastion_interface }}
@@ -150,7 +150,7 @@
           advert_int 1
           authentication {
               auth_type PASS
-              auth_pass ocp_ingress_pass
+              auth_pass nbe_ingress_pass
           }
           virtual_ipaddress {
               {{ ingress_vip }}/24 dev {{ bastion_interface }}
@@ -322,7 +322,7 @@
 #Changing both the virtual_router_id and auth_pass makes your instance unique and avoids the conflict with whatever other keepalived is running on the network. ✅    
 #--------------------------------------------------------------------------------------------------------------------
 - name: "Verify VIPs are assigned"
-  ansible.builtin.shell: "ip addr show {{ bastion_interface }} | grep -c '230\|235'"
+  ansible.builtin.shell: "ip addr show {{ bastion_interface }} | grep -cE '230|235'"
   register: vip_check
   changed_when: false
   failed_when: vip_check.stdout | int < 2
