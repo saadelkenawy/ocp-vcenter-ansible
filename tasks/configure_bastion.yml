@@ -76,5 +76,6 @@
       - haproxy
       - keepalived
       - ipcalc
+      - httpd
     state: present
 
