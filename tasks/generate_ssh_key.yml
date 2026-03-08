@@ -1,0 +1,95 @@
+---
+# ============================================================
+# tasks/generate_ssh_key.yml
+# Generate SSH key on Bastion and save public key to vault
+# ============================================================
+
+# --------------------------------------------------------
+# 1 - Generate SSH key on Bastion
+# --------------------------------------------------------
+- name: "Generate SSH key on Bastion"
+  ansible.builtin.command:
+    cmd: ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N ""
+    creates: /root/.ssh/id_ed25519
+
+- name: "Set permissions on .ssh directory"
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: "Set permissions on private key"
+  ansible.builtin.file:
+    path: /root/.ssh/id_ed25519
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: "Set permissions on public key"
+  ansible.builtin.file:
+    path: /root/.ssh/id_ed25519.pub
+    owner: root
+    group: root
+    mode: "0644"
+
+# --------------------------------------------------------
+# 2 - Read public key
+# --------------------------------------------------------
+- name: "Read public key"
+  ansible.builtin.slurp:
+    src: /root/.ssh/id_ed25519.pub
+  register: ssh_public_key
+
+- name: "Set public key fact"
+  ansible.builtin.set_fact:
+    bastion_ssh_public_key: "{{ ssh_public_key.content | b64decode | trim }}"
+
+- name: "Display public key"
+  ansible.builtin.debug:
+    msg: "{{ bastion_ssh_public_key }}"
+
+# --------------------------------------------------------
+# 3 - Save public key to vault.yml on Ansible machine
+# --------------------------------------------------------
+- name: "Check if vault.yml is encrypted"
+  ansible.builtin.shell: head -1 /home/{{ local_user }}/ocp-vcenter-ansible/vault.yml
+  register: vault_header
+  delegate_to: localhost
+  changed_when: false
+
+- name: "Decrypt vault temporarily"
+  ansible.builtin.shell: |
+    ansible-vault decrypt /home/{{ local_user }}/ocp-vcenter-ansible/vault.yml
+  delegate_to: localhost
+  when: "'ANSIBLE_VAULT' in vault_header.stdout"
+  changed_when: true
+
+- name: "Add or update bastion_ssh_public_key in vault.yml"
+  ansible.builtin.lineinfile:
+    path: "/home/{{ local_user }}/ocp-vcenter-ansible/vault.yml"
+    regexp: "^bastion_ssh_public_key:"
+    line: "bastion_ssh_public_key: \"{{ bastion_ssh_public_key }}\""
+    state: present
+  delegate_to: localhost
+
+- name: "Re-encrypt vault"
+  ansible.builtin.shell: |
+    ansible-vault encrypt /home/{{ local_user }}/ocp-vcenter-ansible/vault.yml
+  delegate_to: localhost
+  changed_when: true
+
+# --------------------------------------------------------
+# 4 - Summary
+# --------------------------------------------------------
+- name: "SSH Key Summary"
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "  SSH Key Generation Complete"
+      - "=================================================="
+      - "  Private key : /root/.ssh/id_ed25519"
+      - "  Public key  : /root/.ssh/id_ed25519.pub"
+      - "  Saved to    : vault.yml as bastion_ssh_public_key"
+      - "=================================================="
