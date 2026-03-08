@@ -1,0 +1,304 @@
+---
+# ============================================================
+# ocp-tasks/generate_manifests_ignition.yml
+# Generate OCP Manifests and Ignition files on Bastion
+# ============================================================
+# prequisties
+#===================
+- name: "Change httpd port to 8888"
+  ansible.builtin.replace:
+    path: /etc/httpd/conf/httpd.conf
+    regexp: "^Listen 80"
+    replace: "Listen 8888"
+
+- name: "Verify httpd is listening on port 8888"
+  ansible.builtin.shell: "grep -c 'Listen 8888' /etc/httpd/conf/httpd.conf"
+  register: port_check
+  changed_when: false
+  failed_when: port_check.stdout | int < 1
+
+- name: "Enable and restart httpd"
+  ansible.builtin.systemd:
+    name: httpd
+    state: restarted
+    enabled: true
+# --------------------------------------------------------
+# 1 - Check install-config.yaml exists
+# --------------------------------------------------------
+- name: "Check install-config.yaml exists"
+  ansible.builtin.stat:
+    path: /root/ocp-install/install-config.yaml
+  register: install_config_stat
+
+- name: "Fail if install-config.yaml not found"
+  ansible.builtin.fail:
+    msg: "install-config.yaml not found in /root/ocp-install/ — run generate_install_config task first"
+  when: not install_config_stat.stat.exists
+
+# --------------------------------------------------------
+# 2 - Check openshift-install binary exists
+# --------------------------------------------------------
+- name: "Check if openshift-install is installed"
+  ansible.builtin.stat:
+    path: /usr/local/bin/openshift-install
+  register: oc_install_stat
+
+- name: "Display openshift-install status"
+  ansible.builtin.debug:
+    msg: "openshift-install: {{ 'Already installed' if oc_install_stat.stat.exists else 'Not found - will download' }}"
+
+- name: "Create download directory"
+  ansible.builtin.file:
+    path: /root/ocp-tools
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+
+- name: "Download openshift-install"
+  ansible.builtin.get_url:
+    url: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-4.20/openshift-install-linux.tar.gz"
+    dest: /root/ocp-tools/openshift-install-linux.tar.gz
+    mode: "0644"
+  when: not oc_install_stat.stat.exists
+
+- name: "Extract openshift-install"
+  ansible.builtin.unarchive:
+    src: /root/ocp-tools/openshift-install-linux.tar.gz
+    dest: /usr/local/bin/
+    remote_src: true
+    include:
+      - openshift-install
+  when: not oc_install_stat.stat.exists
+
+- name: "Set permissions on openshift-install"
+  ansible.builtin.file:
+    path: /usr/local/bin/openshift-install
+    owner: root
+    group: root
+    mode: "0755"
+  when: not oc_install_stat.stat.exists
+
+- name: "Verify openshift-install version"
+  ansible.builtin.command: openshift-install version
+  register: oc_install_version
+  changed_when: false
+
+- name: "Display openshift-install version"
+  ansible.builtin.debug:
+    msg: "{{ oc_install_version.stdout_lines }}"
+
+
+# --------------------------------------------------------
+# 3 - Check if oc and kubectl exist
+# --------------------------------------------------------
+- name: "Check if oc is installed"
+  ansible.builtin.stat:
+    path: /usr/local/bin/oc
+  register: oc_stat
+
+- name: "Check if kubectl is installed"
+  ansible.builtin.stat:
+    path: /usr/local/bin/kubectl
+  register: kubectl_stat
+
+- name: "Display oc and kubectl status"
+  ansible.builtin.debug:
+    msg:
+      - "oc     : {{ 'Already installed' if oc_stat.stat.exists else 'Not found - will download' }}"
+      - "kubectl: {{ 'Already installed' if kubectl_stat.stat.exists else 'Not found - will download' }}"
+
+# --------------------------------------------------------
+# 4 - Download and install openshift-client
+# --------------------------------------------------------
+- name: "Download openshift-client"
+  ansible.builtin.get_url:
+    url: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable-4.20/openshift-client-linux.tar.gz"
+    dest: /root/ocp-tools/openshift-client-linux.tar.gz
+    mode: "0644"
+  when: not oc_stat.stat.exists or not kubectl_stat.stat.exists
+
+- name: "Extract oc and kubectl"
+  ansible.builtin.unarchive:
+    src: /root/ocp-tools/openshift-client-linux.tar.gz
+    dest: /usr/local/bin/
+    remote_src: true
+    include:
+      - oc
+      - kubectl
+  when: not oc_stat.stat.exists or not kubectl_stat.stat.exists
+
+- name: "Set permissions on oc"
+  ansible.builtin.file:
+    path: /usr/local/bin/oc
+    owner: root
+    group: root
+    mode: "0755"
+  when: not oc_stat.stat.exists
+
+- name: "Set permissions on kubectl"
+  ansible.builtin.file:
+    path: /usr/local/bin/kubectl
+    owner: root
+    group: root
+    mode: "0755"
+  when: not kubectl_stat.stat.exists
+
+# --------------------------------------------------------
+# 5 - Verify installations
+# --------------------------------------------------------
+- name: "Verify oc version"
+  ansible.builtin.command: oc version --client
+  register: oc_version
+  changed_when: false
+
+- name: "Verify kubectl version"
+  ansible.builtin.command: kubectl version --client
+  register: kubectl_version
+  changed_when: false
+
+# --------------------------------------------------------
+# 6 - Cleanup downloaded tarballs
+# --------------------------------------------------------
+- name: "Remove downloaded tarballs"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /root/ocp-tools/openshift-install-linux.tar.gz
+    - /root/ocp-tools/openshift-client-linux.tar.gz
+
+# --------------------------------------------------------
+# 7 - Summary
+# --------------------------------------------------------
+- name: "OCP Tools Summary"
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "  OCP Tools Installation Complete"
+      - "=================================================="
+      - "  openshift-install: {{ oc_install_version.stdout_lines[0] }}"
+      - "  oc               : {{ oc_version.stdout_lines[0] }}"
+      - "  kubectl          : {{ kubectl_version.stdout_lines[0] }}"
+      - "  Location         : /usr/local/bin/"
+      - "=================================================="
+
+
+# --------------------------------------------------------
+# 8 - Generate Manifests
+# --------------------------------------------------------
+- name: "Generate manifests"
+  ansible.builtin.command:
+    cmd: openshift-install create manifests --dir /ocp/ocp-install/
+  register: manifest_result
+  changed_when: true
+
+- name: "Manifest generation output"
+  ansible.builtin.debug:
+    msg: "{{ manifest_result.stderr_lines }}"
+
+# --------------------------------------------------------
+# 9 - Set mastersSchedulable to false
+# --------------------------------------------------------
+- name: "Set mastersSchedulable to false"
+  ansible.builtin.replace:
+    path: /opt/ocp-install/manifests/cluster-scheduler-02-config.yml
+    regexp: "mastersSchedulable: true"
+    replace: "mastersSchedulable: false"
+
+# --------------------------------------------------------
+# 10 - Generate Ignition files
+# --------------------------------------------------------
+- name: "Generate ignition files"
+  ansible.builtin.command:
+    cmd: openshift-install create ignition-configs --dir /opt/ocp-install/
+  register: ignition_result
+  changed_when: true
+
+- name: "Ignition generation output"
+  ansible.builtin.debug:
+    msg: "{{ ignition_result.stderr_lines }}"
+
+# --------------------------------------------------------
+# 11 - List generated files
+# --------------------------------------------------------
+- name: "List generated files"
+  ansible.builtin.shell: "ls -lh /opt/ocp-install/"
+  register: generated_files
+  changed_when: false
+
+- name: "Show generated files"
+  ansible.builtin.debug:
+    msg: "{{ generated_files.stdout_lines }}"
+
+# --------------------------------------------------------
+# 12 - Set permissions on ignition files
+# --------------------------------------------------------
+- name: "Set permissions on ignition files"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - /opt/ocp-install/bootstrap.ign
+    - /opt/ocp-install/master.ign
+    - /opt/ocp-install/worker.ign
+
+# --------------------------------------------------------
+# 13 - Copy ignition files to web server directory
+# --------------------------------------------------------
+- name: "Create web server directory for ignition files"
+  ansible.builtin.file:
+    path: /var/www/html/ocp
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: "Copy ignition files to web server"
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /var/www/html/ocp/
+    remote_src: true
+    owner: root
+    group: apache
+    mode: "0755"
+  loop:
+    - /opt/ocp-install/bootstrap.ign
+    - /opt/ocp-install/master.ign
+    - /opt/ocp-install/worker.ign
+
+# --------------------------------------------------------
+# 14 - Backup ignition files to Ansible machine
+# --------------------------------------------------------
+- name: "Backup ignition files to Ansible machine"
+  ansible.builtin.fetch:
+    src: "{{ item }}"
+    dest: "/home/{{ local_user }}/ocp-vcenter-ansible/ocp-tasks/"
+    flat: true
+  loop:
+    - /opt/ocp-install/bootstrap.ign
+    - /opt/ocp-install/master.ign
+    - /opt/ocp-install/worker.ign
+
+# --------------------------------------------------------
+# 15 - Summary
+# --------------------------------------------------------
+- name: "Manifests and Ignition Summary"
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "  Manifests and Ignition Files Generated"
+      - "=================================================="
+      - "  Location      : /opt/ocp-install/"
+      - "  Web Server    : /var/www/html/ocp/"
+      - "  Backup        : ocp-tasks/"
+      - "  Files         :"
+      - "    - bootstrap.ign"
+      - "    - master.ign"
+      - "    - worker.ign"
+      - "=================================================="
+      - "  Next Step: Power on Bootstrap and Masters"
+      - "=================================================="
