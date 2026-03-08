@@ -103,8 +103,8 @@
         - 172.30.0.0/16
       platform:
         none: {}
-      pullSecret: '{{ ocp_pull_secret }}'
-      sshKey: '{{ ssh_pub_key }}'
+      pullSecret: {{ ocp_pull_secret }}
+      sshKey: {{ ssh_pub_key }}
 
 # ------------------------------------------------------------------------------
 # 6 - Backup install-config.yaml to Ansible machine & Bastion OCP installation
