@@ -321,6 +321,10 @@
 #This causes a conflict.
 #Changing both the virtual_router_id and auth_pass makes your instance unique and avoids the conflict with whatever other keepalived is running on the network. ✅    
 #--------------------------------------------------------------------------------------------------------------------
+- name: "Wait for keepalived to assign VIPs"
+  ansible.builtin.pause:
+    seconds: 15
+  
 - name: "Verify VIPs are assigned"
   ansible.builtin.shell: "ip addr show {{ bastion_interface }} | grep -cE '230|235'"
   register: vip_check
