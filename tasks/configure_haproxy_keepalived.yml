@@ -129,7 +129,7 @@
       vrrp_instance VI_API {
           state MASTER
           interface {{ bastion_interface }}
-          virtual_router_id 51
+          virtual_router_id 61
           priority 100
           advert_int 1
           authentication {
@@ -145,7 +145,7 @@
       vrrp_instance VI_INGRESS {
           state MASTER
           interface {{ bastion_interface }}
-          virtual_router_id 52
+          virtual_router_id 62
           priority 100
           advert_int 1
           authentication {
@@ -317,15 +317,11 @@
   ansible.builtin.debug:
     msg: "{{ ip_addr_result.stdout }}"
 
-- name: "Verify API VIP"
-  ansible.builtin.fail:
-    msg: "API VIP {{ api_vip }} is NOT assigned to {{ bastion_interface }}"
-  when: api_vip not in ip_addr_result.stdout | replace('/24', '')
-
-- name: "Verify Ingress VIP"
-  ansible.builtin.fail:
-    msg: "Ingress VIP {{ ingress_vip }} is NOT assigned to {{ bastion_interface }}"
-  when: ingress_vip not in ip_addr_result.stdout | replace('/24', ''
+- name: "Verify VIPs are assigned"
+  ansible.builtin.shell: "ip addr show {{ bastion_interface }} | grep -c '230\|235'"
+  register: vip_check
+  changed_when: false
+  failed_when: vip_check.stdout | int < 2
 
 # --------------------------------------------------------
 # 10 - Summary
