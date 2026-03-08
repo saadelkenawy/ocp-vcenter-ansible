@@ -190,7 +190,7 @@
 # --------------------------------------------------------
 - name: "Generate manifests"
   ansible.builtin.command:
-    cmd: openshift-install create manifests --dir /ocp/ocp-install/
+    cmd: openshift-install create manifests --dir /opt/ocp-install/
   register: manifest_result
   changed_when: true
 
