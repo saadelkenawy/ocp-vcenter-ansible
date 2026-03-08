@@ -196,7 +196,10 @@
     
     - name: "Generate OCP install-config.yaml"
       ansible.builtin.include_tasks: ocp-tasks/generate_install_config.yml
-    
+
+    - name: "Generate Manifests and Ignition files"
+      ansible.builtin.include_tasks: ocp-tasks/generate_manifests_ignition.yml 
+
     # --------------------------------------------------------
     # PHASE 7: Summary
     # --------------------------------------------------------
