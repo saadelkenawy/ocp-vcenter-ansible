@@ -190,8 +190,12 @@
 
     - name: "Configure HAProxy and Keepalived"
       ansible.builtin.include_tasks: tasks/configure_haproxy_keepalived.yml
+
     - name: "Generate SSH Key"
       ansible.builtin.include_tasks: tasks/generate_ssh_key.yml
+    
+    - name: "Generate OCP install-config.yaml"
+      ansible.builtin.include_tasks: ocp-tasks/generate_install_config.yml
     
     # --------------------------------------------------------
     # PHASE 7: Summary
