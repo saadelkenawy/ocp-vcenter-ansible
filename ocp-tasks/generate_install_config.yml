@@ -7,22 +7,21 @@
 # --------------------------------------------------------
 # 1 - Load bastion_ip and network from file
 # --------------------------------------------------------
+- name: "Copy bastion_ip.txt to bastion"
+  ansible.builtin.copy:
+    src: "/home/{{ local_user }}/ocp-vcenter-ansible/bastion_ip.txt"
+    dest: "/tmp/bastion_ip.txt"
+    mode: "0644"
+
 - name: "Load bastion info from file"
   ansible.builtin.slurp:
-    src: "/home/{{ local_user }}/ocp-vcenter-ansible/bastion_ip.txt"
+    src: "/tmp/bastion_ip.txt"
   register: bastion_ip_file
-  delegate_to: localhost
 
 - name: "Set bastion facts"
   ansible.builtin.set_fact:
     bastion_ip: "{{ bastion_ip_file.content | b64decode | regex_search('bastion_ip: (.+)', '\\1') | first | trim }}"
     bastion_network: "{{ bastion_ip_file.content | b64decode | regex_search('bastion_network: (.+)', '\\1') | first | trim }}"
-  delegate_to: localhost
-
-- name: "Share facts with bastion"
-  ansible.builtin.set_fact:
-    bastion_ip: "{{ hostvars['localhost']['bastion_ip'] }}"
-    bastion_network: "{{ hostvars['localhost']['bastion_network'] }}"
 
 
 
@@ -37,21 +36,10 @@
   ansible.builtin.pause:
     prompt: "Enter OCP cluster name (e.g. ocp)"
   register: cluster_name_input
-  retries: 5
-  delay: 0
-  delegate_to: localhost
-
-# --------------------------------------------------------
-# 3 - Ask user for required inputs
-# --------------------------------------------------------
-- name: "Ask for cluster name"
-  ansible.builtin.pause:
-    prompt: "Enter OCP cluster name (e.g. ocp)"
-  register: cluster_name_input
   until: cluster_name_input.user_input | trim != ""
   retries: 5
   delay: 0
-  delegate_to: localhost
+  
 
 - name: "Ask for base domain"
   ansible.builtin.pause:
@@ -60,28 +48,20 @@
   until: base_domain_input.user_input | trim != ""
   retries: 5
   delay: 0
-  delegate_to: localhost
 
 - name: "Set user input facts"
   ansible.builtin.set_fact:
     ocp_cluster_name: "{{ cluster_name_input.user_input | trim }}"
     ocp_base_domain: "{{ base_domain_input.user_input | trim }}"
     ocp_pull_secret: "{{ pull_secret }}"
-  delegate_to: localhost
 
-- name: "Share user inputs with bastion"
-  ansible.builtin.set_fact:
-    ocp_cluster_name: "{{ hostvars['localhost']['ocp_cluster_name'] }}"
-    ocp_base_domain: "{{ hostvars['localhost']['ocp_base_domain'] }}"
-    ocp_pull_secret: "{{ hostvars['localhost']['ocp_pull_secret'] }}"
-    ssh_pub_key: "{{ hostvars['localhost']['ssh_pub_key'] }}"
 
 # --------------------------------------------------------
 # 4 - Create OCP installation directory on Bastion
 # --------------------------------------------------------
 - name: "Create OCP installation directory"
   ansible.builtin.file:
-    path: /root/ocp-install
+    path: /opt/ocp-install
     state: directory
     owner: root
     group: root
@@ -92,7 +72,7 @@
 # --------------------------------------------------------
 - name: "Generate install-config.yaml"
   ansible.builtin.copy:
-    dest: /root/ocp-install/install-config.yaml
+    dest: /opt/ocp-install/install-config.yaml
     owner: root
     group: root
     mode: "0644"
@@ -131,14 +111,14 @@
 # --------------------------------------------------------------------------------
 - name: "Backup install-config.yaml to Ansible machine"
   ansible.builtin.fetch:
-    src: /root/ocp-install/install-config.yaml
+    src: /opt/ocp-install/install-config.yaml
     dest: "/home/{{ local_user }}/ocp-vcenter-ansible/ocp-tasks/install-config.yaml"
     flat: true
 
 - name: "Backup install-config.yaml"
   ansible.builtin.copy:
-    src: /root/ocp-install/install-config.yaml
-    dest: /root/ocp-install/install-config.yaml.bk
+    src: /opt/ocp-install/install-config.yaml
+    dest: /opt/ocp-install/install-config.yaml.bk
     remote_src: true
     owner: root
     group: root
