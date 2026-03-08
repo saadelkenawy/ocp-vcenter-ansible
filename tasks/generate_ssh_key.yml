@@ -61,7 +61,8 @@
 
 - name: "Decrypt vault temporarily"
   ansible.builtin.shell: |
-    ansible-vault decrypt /home/{{ local_user }}/ocp-vcenter-ansible/vault.yml
+    ansible-vault decrypt /home/{{ local_user }}/ocp-vcenter-ansible/vault.yml \
+    --vault-password-file /home/{{ local_user }}/ocp-vcenter-ansible/.vault_pass
   delegate_to: localhost
   when: "'ANSIBLE_VAULT' in vault_header.stdout"
   changed_when: true
@@ -76,7 +77,9 @@
 
 - name: "Re-encrypt vault"
   ansible.builtin.shell: |
-    ansible-vault encrypt /home/{{ local_user }}/ocp-vcenter-ansible/vault.yml
+    ansible-vault encrypt /home/{{ local_user }}/ocp-vcenter-ansible/vault.yml \
+    --vault-password-file /home/{{ local_user }}/ocp-vcenter-ansible/.vault_pass \
+    --encrypt-vault-id default
   delegate_to: localhost
   changed_when: true
 
