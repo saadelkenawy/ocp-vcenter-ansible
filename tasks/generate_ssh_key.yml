@@ -7,10 +7,41 @@
 # --------------------------------------------------------
 # 1 - Generate SSH key on Bastion
 # --------------------------------------------------------
+- name: "Check if SSH key exists"
+  ansible.builtin.stat:
+    path: /root/.ssh/id_ed25519
+  register: ssh_key_stat
+
+- name: "Ask to overwrite existing SSH key"
+  ansible.builtin.pause:
+    prompt: "SSH key already exists. Overwrite? (yes/no)"
+  register: overwrite_input
+  when: ssh_key_stat.stat.exists
+
+- name: "Remove existing SSH key before regenerating"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /root/.ssh/id_ed25519
+    - /root/.ssh/id_ed25519.pub
+  when:
+    - ssh_key_stat.stat.exists
+    - overwrite_input.user_input | lower == "yes"
+
 - name: "Generate SSH key on Bastion"
   ansible.builtin.command:
-    cmd: ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N ""
-    creates: /root/.ssh/id_ed25519
+    cmd: ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N "" -q
+  when: >-
+    not ssh_key_stat.stat.exists or
+    (ssh_key_stat.stat.exists and overwrite_input.user_input | lower == "yes")
+
+- name: "Skip SSH key generation"
+  ansible.builtin.debug:
+    msg: "SSH key generation skipped — existing key kept"
+  when:
+    - ssh_key_stat.stat.exists
+    - overwrite_input.user_input | lower != "yes"
 
 - name: "Set permissions on .ssh directory"
   ansible.builtin.file:
