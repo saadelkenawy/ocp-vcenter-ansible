@@ -27,12 +27,12 @@
 # --------------------------------------------------------
 - name: "Check install-config.yaml exists"
   ansible.builtin.stat:
-    path: /root/ocp-install/install-config.yaml
+    path: /opt/ocp-install/install-config.yaml
   register: install_config_stat
 
 - name: "Fail if install-config.yaml not found"
   ansible.builtin.fail:
-    msg: "install-config.yaml not found in /root/ocp-install/ — run generate_install_config task first"
+    msg: "install-config.yaml not found in /opt/ocp-install/ — run generate_install_config task first"
   when: not install_config_stat.stat.exists
 
 # --------------------------------------------------------

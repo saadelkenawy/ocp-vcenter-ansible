@@ -136,6 +136,6 @@
       - "  Cluster Name : {{ ocp_cluster_name }}"
       - "  Base Domain  : {{ ocp_base_domain }}"
       - "  Machine Net  : {{ bastion_network }}"
-      - "  Location     : /root/ocp-install/install-config.yaml"
+      - "  Location     : /opt/ocp-install/install-config.yaml"
       - "  Backup       : ocp-tasks/install-config.yaml"
       - "=================================================="
