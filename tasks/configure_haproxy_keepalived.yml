@@ -137,7 +137,7 @@
               auth_pass ocp_api_pass
           }
           virtual_ipaddress {
-              {{ api_vip }}/24
+              {{ api_vip }}/24 dev {{ bastion_interface }}
           }
       }
 
@@ -153,7 +153,7 @@
               auth_pass ocp_ingress_pass
           }
           virtual_ipaddress {
-              {{ ingress_vip }}/24
+              {{ ingress_vip }}/24 dev {{ bastion_interface }}
           }
       }
 
@@ -313,15 +313,19 @@
   register: ip_addr_result
   changed_when: false
 
+- name: "Debug ip addr output"
+  ansible.builtin.debug:
+    msg: "{{ ip_addr_result.stdout }}"
+
 - name: "Verify API VIP"
   ansible.builtin.fail:
     msg: "API VIP {{ api_vip }} is NOT assigned to {{ bastion_interface }}"
-  when: api_vip not in ip_addr_result.stdout
+  when: api_vip not in ip_addr_result.stdout | replace('/24', '')
 
 - name: "Verify Ingress VIP"
   ansible.builtin.fail:
     msg: "Ingress VIP {{ ingress_vip }} is NOT assigned to {{ bastion_interface }}"
-  when: ingress_vip not in ip_addr_result.stdout
+  when: ingress_vip not in ip_addr_result.stdout | replace('/24', ''
 
 # --------------------------------------------------------
 # 10 - Summary
