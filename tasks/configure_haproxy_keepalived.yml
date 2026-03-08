@@ -316,7 +316,11 @@
 - name: "Debug ip addr output"
   ansible.builtin.debug:
     msg: "{{ ip_addr_result.stdout }}"
-
+#-----------------------------------------------------------------------------------------------------------------
+# This means another keepalived instance on the same network is using the same virtual_router_id (51/52) and password. 
+#This causes a conflict.
+#Changing both the virtual_router_id and auth_pass makes your instance unique and avoids the conflict with whatever other keepalived is running on the network. ✅    
+#--------------------------------------------------------------------------------------------------------------------
 - name: "Verify VIPs are assigned"
   ansible.builtin.shell: "ip addr show {{ bastion_interface }} | grep -c '230\|235'"
   register: vip_check
