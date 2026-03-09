@@ -188,6 +188,15 @@
 # --------------------------------------------------------
 # 8 - Generate Manifests
 # --------------------------------------------------------
+- name: "Check if manifests auth dir already exists"
+  ansible.builtin.stat:
+    path: /opt/ocp-install/auth
+  register: auth_dir_check
+
+- name: "Skip manifests and ignition generation - already done"
+  ansible.builtin.meta: end_host
+  when: auth_dir_check.stat.exists
+
 - name: "Generate manifests"
   ansible.builtin.command:
     cmd: openshift-install create manifests --dir /opt/ocp-install/
