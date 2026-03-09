@@ -5,6 +5,29 @@
 # ============================================================
 
 # --------------------------------------------------------
+# 0 - Pre-checks: Skip if already done
+# --------------------------------------------------------
+- name: "Check if ignition files already exist"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: ignition_check
+  loop:
+    - /opt/ocp-install/bootstrap.ign
+    - /opt/ocp-install/master.ign
+    - /opt/ocp-install/worker.ign
+
+- name: "Check if install dir already exists"
+  ansible.builtin.stat:
+    path: /opt/ocp-install
+  register: install_dir_check
+
+- name: "Skip all remaining tasks - already completed"
+  ansible.builtin.meta: end_host
+  when:
+    - ignition_check.results | selectattr('stat.exists', 'equalto', true) | list | length == 3
+    - install_dir_check.stat.exists
+
+# --------------------------------------------------------
 # 1 - Load bastion_ip and network from file
 # --------------------------------------------------------
 - name: "Copy bastion_ip.txt to bastion"
@@ -32,13 +55,14 @@
   ansible.builtin.set_fact:
     ssh_pub_key: "{{ bastion_ssh_public_key }}"
 
-- name: "Ask for cluster name"
-  ansible.builtin.pause:
-    prompt: "Enter OCP cluster name (e.g. ocp)"
-  register: cluster_name_input
-  until: cluster_name_input.user_input | trim != ""
-  retries: 5
-  delay: 0
+- name: "Load cluster name from file"
+  ansible.builtin.slurp:
+    src: /tmp/ocp_cluster_name.txt
+  register: cluster_name_file
+
+- name: "Set cluster name fact"
+  ansible.builtin.set_fact:
+    ocp_cluster_name: "{{ cluster_name_file.content | b64decode | trim }}"
   
 
 - name: "Ask for base domain"
@@ -49,11 +73,20 @@
   retries: 5
   delay: 0
 
+- name: "Ask for pull secret"
+  ansible.builtin.pause:
+    prompt: "Paste your pull secret from https://console.redhat.com/openshift/install/pull-secret"
+  register: pull_secret_input
+  until: pull_secret_input.user_input | trim != ""
+  retries: 5
+  delay: 0
+
 - name: "Set user input facts"
   ansible.builtin.set_fact:
     ocp_cluster_name: "{{ cluster_name_input.user_input | trim }}"
     ocp_base_domain: "{{ base_domain_input.user_input | trim }}"
-    ocp_pull_secret: "{{ pull_secret }}"
+    ocp_pull_secret: "{{ pull_secret_input.user_input | trim }}"
+    ssh_pub_key: "{{ bastion_ssh_public_key }}"
 
 
 # --------------------------------------------------------
@@ -71,40 +104,13 @@
 # 5 - Generate install-config.yaml
 # --------------------------------------------------------
 - name: "Generate install-config.yaml"
-  ansible.builtin.copy:
+  ansible.builtin.template:
+    src: "/home/{{ local_user }}/ocp-vcenter-ansible/ocp-tasks/install-config.yaml.j2"
     dest: /opt/ocp-install/install-config.yaml
     owner: root
     group: root
     mode: "0644"
     force: true
-    content: |
-      apiVersion: v1
-      baseDomain: {{ ocp_base_domain }}
-      compute:
-      - architecture: amd64
-        hyperthreading: Enabled
-        name: worker
-        replicas: 0
-      controlPlane:
-        architecture: amd64
-        hyperthreading: Enabled
-        name: master
-        replicas: 3
-      metadata:
-        name: {{ ocp_cluster_name }}
-      networking:
-        clusterNetwork:
-        - cidr: 10.128.0.0/14
-          hostPrefix: 23
-        machineNetwork:
-        - cidr: {{ bastion_network }}
-        networkType: OVNKubernetes
-        serviceNetwork:
-        - 172.30.0.0/16
-      platform:
-        none: {}
-      pullSecret: {{ ocp_pull_secret }}
-      sshKey: {{ ssh_pub_key }}
 
 # ------------------------------------------------------------------------------
 # 6 - Backup install-config.yaml to Ansible machine & Bastion OCP installation
