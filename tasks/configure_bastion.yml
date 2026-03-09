@@ -23,7 +23,7 @@
     state: present
 - name: "Create local RHEL9 repo file"
   ansible.builtin.copy:
-    dest: /etc/yum.repos.d/local-rhel9.repo
+    dest: /etc/yum.repos.d/Golden.repo
     force: true
     content: |
       [RHEL9-Baseos]
