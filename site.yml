@@ -117,6 +117,36 @@
         prompt: "Power on Bastion VM now? (yes/no)"
       register: poweron_answer
       when: bastion_info.instance.hw_power_status != "poweredOn"    
+
+    - name: "Power on Bastion VM"
+      community.vmware.vmware_guest_powerstate:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ vcenter_validate_certs }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        name: "{{ vm_name_prefix }}-Bastion1"
+        state: powered-on
+      when:
+        - bastion_info.instance.hw_power_status != "poweredOn"
+        - poweron_answer.user_input | lower == "yes"
+
+    - name: "Wait for Bastion to power on"
+      community.vmware.vmware_guest_info:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ vcenter_validate_certs }}"
+        datacenter: "{{ vcenter_datacenter }}"
+        name: "{{ vm_name_prefix }}-Bastion1"
+      register: bastion_verify
+      until: bastion_verify.instance.hw_power_status == "poweredOn"
+      retries: 10
+      delay: 10
+      when:
+        - bastion_info.instance.hw_power_status != "poweredOn"
+        - poweron_answer.user_input | lower == "yes"
+        
 # ------------------------------------------------------------------------------
 # Bastion IP Mandatory
 #--------------------------------------------------------------------------------
@@ -145,7 +175,7 @@
       ansible.builtin.wait_for:
         host: "{{ bastion_ip }}"
         port: 22
-        timeout: 600
+        timeout: 6000
         msg: "Waiting for Bastion SSH to become available..."
 
     # --------------------------------------------------------
@@ -198,7 +228,10 @@
       ansible.builtin.include_tasks: ocp-tasks/generate_install_config.yml
 
     - name: "Generate Manifests and Ignition files"
-      ansible.builtin.include_tasks: ocp-tasks/generate_manifests_ignition.yml 
+      ansible.builtin.include_tasks: ocp-tasks/generate_manifests_ignition.yml
+
+    - name: "Power on Bootstrap VM"
+      ansible.builtin.include_tasks: ocp-vms/poweron_bootstrap.yml
 
     # --------------------------------------------------------
     # PHASE 7: Summary
