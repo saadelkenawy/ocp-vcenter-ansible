@@ -102,7 +102,7 @@
   ansible.builtin.lineinfile:
     path: "/home/{{ local_user }}/ocp-vcenter-ansible/vault.yml"
     regexp: "^bastion_ssh_public_key:"
-    line: "bastion_ssh_public_key: \"{{ bastion_ssh_public_key }}\""
+    line: "bastion_ssh_public_key: '{{ bastion_ssh_public_key }}'"
     state: present
   delegate_to: localhost
 
