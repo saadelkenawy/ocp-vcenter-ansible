@@ -178,6 +178,18 @@
         timeout: 6000
         msg: "Waiting for Bastion SSH to become available..."
 
+    - name: "Remove old SSH host key for Bastion"
+      ansible.builtin.known_hosts:
+        name: "{{ bastion_ip }}"
+        state: absent
+      delegate_to: localhost
+
+    - name: "Scan and add new SSH host key for Bastion"
+      ansible.builtin.shell: |
+        ssh-keyscan -H {{ bastion_ip }} >> /home/{{ local_user }}/.ssh/known_hosts
+      delegate_to: localhost
+      changed_when: true
+
     # --------------------------------------------------------
     # PHASE 6 - Configure Bastion
     # --------------------------------------------------------
@@ -190,6 +202,7 @@
         name: "bastion"
         ansible_host: "{{ bastion_ip }}"
         ansible_user: root
+        ansible_ssh_pass: "{{ bastion_ssh_password }}"
         ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
 
 - name: "Configure Bastion Server"
