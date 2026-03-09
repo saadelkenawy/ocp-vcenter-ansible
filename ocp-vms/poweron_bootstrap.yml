@@ -1,0 +1,79 @@
+---
+# ============================================================
+# ocp-vms/poweron_bootstrap.yml
+# Power on Bootstrap VM and verify
+# ============================================================
+
+# --------------------------------------------------------
+# 1 - Check Bootstrap VM power state
+# --------------------------------------------------------
+- name: "Get Bootstrap VM power state"
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ vcenter_validate_certs }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    name: "{{ vm_name_prefix }}-Bootstrap1"
+  register: bootstrap_info
+  #delegate_to: localhost
+
+# - name: "Display Bootstrap VM current power state"
+#   ansible.builtin.debug:
+#     msg: "Bootstrap VM current state: {{ bootstrap_info.instance.hw_power_status }}"
+#   delegate_to: localhost
+
+# --------------------------------------------------------
+# 2 - Power on Bootstrap VM if not already on
+# --------------------------------------------------------
+- name: "Power on Bootstrap VM"
+  community.vmware.vmware_guest_powerstate:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ vcenter_validate_certs }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    name: "{{ vm_name_prefix }}-Bootstrap1"
+    state: powered-on
+  register: bootstrap_power
+  when: bootstrap_info.instance.hw_power_status != "poweredOn"
+  delegate_to: localhost
+
+- name: "Bootstrap VM already powered on"
+  ansible.builtin.debug:
+    msg: "Bootstrap VM is already powered on - skipping"
+  when: bootstrap_info.instance.hw_power_status == "poweredOn"
+  delegate_to: localhost
+
+# --------------------------------------------------------
+# 3 - Wait for Bootstrap VM to be powered on
+# --------------------------------------------------------
+- name: "Wait for Bootstrap VM to power on"
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ vcenter_validate_certs }}"
+    datacenter: "{{ vcenter_datacenter }}"
+    name: "{{ vm_name_prefix }}-Bootstrap1"
+  register: bootstrap_verify
+  until: bootstrap_verify.instance.hw_power_status == "poweredOn"
+  retries: 10
+  delay: 10
+  delegate_to: localhost
+
+# --------------------------------------------------------
+# 4 - Summary
+# --------------------------------------------------------
+- name: "Bootstrap VM Power On Summary"
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "  Bootstrap VM Power On Complete"
+      - "=================================================="
+      - "  VM Name : {{ vm_name_prefix }}-Bootstrap1"
+      - "  Status  : {{ bootstrap_verify.instance.hw_power_status }}"
+      - "=================================================="
+      - "  Next Step: Power on Master VMs"
+      - "=================================================="
+  delegate_to: localhost
