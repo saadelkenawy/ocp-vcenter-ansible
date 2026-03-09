@@ -74,6 +74,19 @@
       - "API VIP    : {{ api_vip }}"
       - "Ingress VIP: {{ ingress_vip }}"
 
+- name: "Ask for cluster name"
+  ansible.builtin.pause:
+    prompt: "Enter OCP cluster name (e.g. ocp)"
+  register: cluster_name_input
+  until: cluster_name_input.user_input | trim != ""
+  retries: 5
+  delay: 0
+
+- name: "Save cluster name to file"
+  ansible.builtin.copy:
+    content: "{{ cluster_name_input.user_input | trim }}"
+    dest: /tmp/ocp_cluster_name.txt
+
 # --------------------------------------------------------
 # 4 - Load MAC addresses to get master/worker/bootstrap IPs
 # --------------------------------------------------------
@@ -330,6 +343,73 @@
   register: vip_check
   changed_when: false
   failed_when: vip_check.stdout | int < 2
+
+# --------------------------------------------------------
+# Update DNS Forward Zone with OCP VIPs
+# --------------------------------------------------------
+
+- name: "Get DNS domain from named.conf"
+  ansible.builtin.shell: |
+    grep 'include "/etc/named/' /etc/named.conf | awk -F'"' '{print $2}' | sed 's|/etc/named/||' | sed 's|.conf||'
+  register: dns_domain_detected
+  changed_when: false
+
+- name: "Set DNS domain fact"
+  ansible.builtin.set_fact:
+    dns_domain: "{{ dns_domain_detected.stdout | trim }}"
+
+- name: "Update forward zone with OCP VIP records"
+  ansible.builtin.blockinfile:
+    path: "/var/named/zones/{{ dns_domain }}.zone"
+    marker: "; {mark} OCP VIP RECORDS"
+    block: |
+      api.{{ ocp_cluster_name }}        IN  A  {{ api_vip }}
+      api-int.{{ ocp_cluster_name }}    IN  A  {{ api_vip }}
+      *.apps.{{ ocp_cluster_name }}     IN  A  {{ ingress_vip }}
+
+- name: "Update reverse zone with OCP VIP records"
+  ansible.builtin.blockinfile:
+    path: "/var/named/zones/{{ dns_domain }}.rev"
+    marker: "; {mark} OCP VIP RECORDS"
+    block: |
+      {{ api_vip.split('.')[-1] }}      IN  PTR  api.{{ ocp_cluster_name }}.{{ dns_domain }}.
+      {{ api_vip.split('.')[-1] }}      IN  PTR  api-int.{{ ocp_cluster_name }}.{{ dns_domain }}.
+      {{ ingress_vip.split('.')[-1] }}  IN  PTR  apps.{{ ocp_cluster_name }}.{{ dns_domain }}.
+
+- name: "Increment serial in forward zone"
+  ansible.builtin.shell: |
+    serial=$(grep -oP '\d{10}' /var/named/zones/{{ dns_domain }}.zone | head -1)
+    new_serial=$((serial + 1))
+    sed -i "s/$serial/$new_serial/" /var/named/zones/{{ dns_domain }}.zone
+  changed_when: true
+
+- name: "Increment serial in reverse zone"
+  ansible.builtin.shell: |
+    serial=$(grep -oP '\d{10}' /var/named/zones/{{ dns_domain }}.rev | head -1)
+    new_serial=$((serial + 1))
+    sed -i "s/$serial/$new_serial/" /var/named/zones/{{ dns_domain }}.rev
+  changed_when: true
+
+- name: "Restart named"
+  ansible.builtin.systemd:
+    name: named
+    state: restarted
+
+- name: "Verify API VIP DNS resolution"
+  ansible.builtin.command: "dig @{{ bastion_ip }} api.{{ ocp_cluster_name }}.{{ dns_domain }} +short"
+  register: api_dig
+  changed_when: false
+
+- name: "Verify Ingress VIP DNS resolution"
+  ansible.builtin.command: "dig @{{ bastion_ip }} test.apps.{{ ocp_cluster_name }}.{{ dns_domain }} +short"
+  register: ingress_dig
+  changed_when: false
+
+- name: "DNS VIP Resolution Results"
+  ansible.builtin.debug:
+    msg:
+      - "API VIP    : {{ api_dig.stdout }}"
+      - "Ingress VIP: {{ ingress_dig.stdout }}
 
 # --------------------------------------------------------
 # 10 - Summary
