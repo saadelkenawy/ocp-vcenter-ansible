@@ -82,6 +82,10 @@
   retries: 5
   delay: 0
 
+- name: "Set cluster name fact"
+  ansible.builtin.set_fact:
+    ocp_cluster_name: "{{ cluster_name_input.user_input | trim }}"
+
 - name: "Save cluster name to file"
   ansible.builtin.copy:
     content: "{{ cluster_name_input.user_input | trim }}"
@@ -409,7 +413,7 @@
   ansible.builtin.debug:
     msg:
       - "API VIP    : {{ api_dig.stdout }}"
-      - "Ingress VIP: {{ ingress_dig.stdout }}
+      - "Ingress VIP: {{ ingress_dig.stdout }}"
 
 # --------------------------------------------------------
 # 10 - Summary
