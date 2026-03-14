@@ -65,6 +65,7 @@
     name: "*"
     state: latest
     update_cache: true
+    skip_broken: true
 
 - name: "Install required packages"
   ansible.builtin.dnf:
