@@ -36,8 +36,8 @@ vms:
     index: 1
     num_cpus: 8
     memory_mb: 16384
-    disk1_size_gb: 120
-    disk2_size_gb: 200
+    disk1_size_gb: 200
+    disk2_size_gb: 0
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
@@ -46,8 +46,8 @@ vms:
     index: 2
     num_cpus: 8
     memory_mb: 16384
-    disk1_size_gb: 120
-    disk2_size_gb: 200
+    disk1_size_gb: 200
+    disk2_size_gb: 0
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
@@ -56,8 +56,8 @@ vms:
     index: 3
     num_cpus: 8
     memory_mb: 16384
-    disk1_size_gb: 120
-    disk2_size_gb: 200
+    disk1_size_gb: 200
+    disk2_size_gb: 0
     network: "NET-192.168.110.0"
     iso: "{{ iso_path }}"
     guest_id: "coreos64Guest"
@@ -74,6 +74,16 @@ vms:
     hardware_version: "20"
   - role: "Worker"
     index: 2
+    num_cpus: 8
+    memory_mb: 16384
+    disk1_size_gb: 120
+    disk2_size_gb: 300
+    network: "NET-192.168.110.0"
+    iso: "{{ iso_path }}"
+    guest_id: "coreos64Guest"
+    hardware_version: "20"
+  - role: "Worker"
+    index: 3
     num_cpus: 8
     memory_mb: 16384
     disk1_size_gb: 120
