@@ -7,9 +7,18 @@
   register: bastion_ip_file
   delegate_to: localhost
 
+# - name: "Set bastion_ip fact"
+#   ansible.builtin.set_fact:
+#     bastion_ip: "{{ bastion_ip_file.content | b64decode | regex_search('bastion_ip: (.+)', '\\1') | first | trim }}"
+
+# - name: "Set bastion_ip fact"
+#   ansible.builtin.set_fact:
+#     bastion_ip: "{{ bastion_ip_file.content | b64decode.split('\n') | select('match', 'bastion_ip:') | first | split(':') | last | trim }}"
+
 - name: "Set bastion_ip fact"
   ansible.builtin.set_fact:
     bastion_ip: "{{ bastion_ip_file.content | b64decode | regex_search('bastion_ip: (.+)', '\\1') | first | trim }}"
+    bastion_network: "{{ bastion_ip_file.content | b64decode | regex_search('bastion_network: (.+)', '\\1') | first | trim }}"
 
 - name: "Get domain name from hostname"
   ansible.builtin.command: hostname -f
