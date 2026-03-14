@@ -1,3 +1,2 @@
 bastion_ip: 192.168.110.10
-
 bastion_network: 192.168.110.0/24
