@@ -154,22 +154,24 @@
       ansible.builtin.pause:
         prompt: "Enter Bastion IP address"
       register: bastion_ip_input
-      until: bastion_ip_input.user_input | trim != ""
-      retries: 5
-      delay: 0
 
     - name: "Fail if bastion IP is empty"
       ansible.builtin.fail:
         msg: "Bastion IP cannot be empty — please re-run the playbook"
       when: bastion_ip_input.user_input | trim == ""
- 
+
     - name: "Save Bastion IP for later tasks"
       ansible.builtin.set_fact:
-        bastion_ip: "{{ bastion_ip_input.user_input }}"
+        bastion_ip: "{{ bastion_ip_input.user_input | trim }}"
+ 
+    - name: "Save Bastion IP to file"
+      ansible.builtin.copy:
+        content: "bastion_ip: {{ bastion_ip_input.user_input | trim }}\nbastion_network: {{ bastion_ip_input.user_input | trim | regex_replace('(\\d+\\.\\d+\\.\\d+)\\.\\d+', '\\1.0/24') }}"
+        dest: "/home/{{ local_user }}/ocp-vcenter-ansible/bastion_ip.txt"
 
-    - name: "Confirm Bastion IP saved"
-      ansible.builtin.debug:
-        msg: "Bastion IP set to: {{ bastion_ip }} — ready for next tasks"
+    # - name: "Confirm Bastion IP saved"
+    #   ansible.builtin.debug:
+    #     msg: "Bastion IP set to: {{ bastion_ip }} — ready for next tasks"
 
     - name: "Test connectivity to Bastion"
       ansible.builtin.wait_for:
@@ -245,6 +247,7 @@
 
     - name: "Power on Bootstrap VM"
       ansible.builtin.include_tasks: ocp-vms/poweron_bootstrap.yml
+      tags: bootstrap
 
     # --------------------------------------------------------
     # PHASE 7: Summary
