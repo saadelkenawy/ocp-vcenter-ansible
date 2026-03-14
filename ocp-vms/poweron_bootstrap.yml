@@ -14,14 +14,14 @@
     password: "{{ vcenter_password }}"
     validate_certs: "{{ vcenter_validate_certs }}"
     datacenter: "{{ vcenter_datacenter }}"
-    name: "{{ vm_name_prefix }}-Bootstrap1"
+    name: "{{ vm_name_prefix }}-bootstrap1"
   register: bootstrap_info
-  #delegate_to: localhost
+  delegate_to: localhost
 
-# - name: "Display Bootstrap VM current power state"
-#   ansible.builtin.debug:
-#     msg: "Bootstrap VM current state: {{ bootstrap_info.instance.hw_power_status }}"
-#   delegate_to: localhost
+- name: "Display Bootstrap VM current power state"
+  ansible.builtin.debug:
+    msg: "Bootstrap VM current state: {{ bootstrap_info.instance.hw_power_status }}"
+  delegate_to: localhost
 
 # --------------------------------------------------------
 # 2 - Power on Bootstrap VM if not already on
@@ -33,7 +33,7 @@
     password: "{{ vcenter_password }}"
     validate_certs: "{{ vcenter_validate_certs }}"
     datacenter: "{{ vcenter_datacenter }}"
-    name: "{{ vm_name_prefix }}-Bootstrap1"
+    name: "{{ vm_name_prefix }}-bootstrap1"
     state: powered-on
   register: bootstrap_power
   when: bootstrap_info.instance.hw_power_status != "poweredOn"
@@ -55,7 +55,7 @@
     password: "{{ vcenter_password }}"
     validate_certs: "{{ vcenter_validate_certs }}"
     datacenter: "{{ vcenter_datacenter }}"
-    name: "{{ vm_name_prefix }}-Bootstrap1"
+    name: "{{ vm_name_prefix }}-bootstrap1"
   register: bootstrap_verify
   until: bootstrap_verify.instance.hw_power_status == "poweredOn"
   retries: 10
@@ -71,7 +71,7 @@
       - "=================================================="
       - "  Bootstrap VM Power On Complete"
       - "=================================================="
-      - "  VM Name : {{ vm_name_prefix }}-Bootstrap1"
+      - "  VM Name : {{ vm_name_prefix }}-bootstrap1"
       - "  Status  : {{ bootstrap_verify.instance.hw_power_status }}"
       - "=================================================="
       - "  Next Step: Power on Master VMs"
