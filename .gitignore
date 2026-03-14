@@ -3,3 +3,4 @@ ocp-tasks/install-config.yaml
 ocp-tasks/bootstrap.ign
 ocp-tasks/master.ign
 ocp-tasks/worker.ign
+vault.yml
