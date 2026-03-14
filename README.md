@@ -7,13 +7,16 @@ Ansible playbook to deploy **8 OpenShift VMs** on VMware vCenter — no template
 ## VMs Created
 
 | Name | Role | CPUs | RAM | Disk1 | Disk2 |
-|---|---|---|---|---|---|
-| Enawy-OCP-Master1 | Master | 8 | 16GB | 120GB | 200GB |
-| Enawy-OCP-Master2 | Master | 8 | 16GB | 120GB | 200GB |
-| Enawy-OCP-Master3 | Master | 8 | 16GB | 120GB | 200GB |
+|---|---|---|---|---|---|----|----|
+| Enawy-OCP-Master1 | Master | 8 | 16GB | 120GB |  0  
+| Enawy-OCP-Master2 | Master | 8 | 16GB | 120GB | 0|
+| Enawy-OCP-Master3 | Master | 8 | 16GB | 120GB | 0 
 | Enawy-OCP-Worker1 | Worker | 16 | 32GB | 120GB | 500GB |
 | Enawy-OCP-Worker2 | Worker | 16 | 32GB | 120GB | 500GB |
 | Enawy-OCP-Worker3 | Worker | 16 | 32GB | 120GB | 500GB |
+| Enawy-OCP-ODF-1  | Worker | 16 | 32GB | 120GB | 500GB |
+| Enawy-OCP-ODF-2 | Worker | 16 | 32GB | 120GB | 500GB |
+| Enawy-OCP-ODF-2 | Worker | 16 | 32GB | 120GB | 500GB |
 | Enawy-OCP-Bootstrap | Worker | 8 | 16GB | 120GB | - |
 | Enawy-OCP-Bastion | rhel9 | 4 | 8GB | 120GB | - |
 
@@ -22,20 +25,39 @@ Ansible playbook to deploy **8 OpenShift VMs** on VMware vCenter — no template
 
 ## Project Structure
 
-```
-ocp-vcenter-ansible/
-├── site.yml                      # Main playbook
-├── vars.yml                      # All variables (no credentials)
-├── vault.yml                     # ENCRYPTED credentials (not in git)
-├── vault.yml.example             # Vault template (safe to commit)
-├── ansible.cfg                   # Ansible config
-├── inventory.ini                 # Localhost inventory
-├── .gitignore                    # Excludes vault.yml and secrets
-└── tasks/
-    ├── create_vm.yml             # Phase 1: Create VM + attach ISO
-    ├── add_disks.yml             # Phase 2: Add 2 disks per VM
-    └── set_advanced_params.yml   # Phase 3: Advanced VM parameters
-```
+.
+├── ansible.cfg
+├── bastion_ip.txt
+├── inventory.ini
+├── mac_addresses.txt
+├── ocp-tasks
+│   ├── bootstrap.ign
+│   ├── generate_install_config.yml
+│   ├── generate_manifests_ignition.yml
+│   ├── install-config.yaml
+│   ├── install-config.yaml.j2
+│   ├── master.ign
+│   └── worker.ign
+├── ocp-vms
+│   └── poweron_bootstrap.yml
+├── README.md
+├── should-run-this-on-bastion-one-reboot.txt
+├── site.yml
+├── ssh-gen-ansible-copy-to-bastion.txt
+├── tasks
+│   ├── add_disks.yml
+│   ├── configure_bastion.yml
+│   ├── configure_dhcp.yml
+│   ├── configure_dns.yml
+│   ├── configure_haproxy_keepalived.yml
+│   ├── configure_ntp.yml
+│   ├── create_vm.yml
+│   ├── generate_ssh_key.yml
+│   ├── set_advanced_params.yml
+│   └── update_dns_zones.yml
+├── vars.yml
+├── vault.yml
+└── vault.yml.example
 
 ---
 
@@ -64,7 +86,8 @@ iso_path: "ISO/rhcos-4.14.iso"
 
 **2. Create encrypted vault:**
 ```bash
-ansible-vault create vault.yml
+ansible-vault create vault.yml  
+Added in .gitignore
 ```
 ```yaml
 vcenter_username: "administrator@vsphere.local"
