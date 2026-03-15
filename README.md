@@ -190,7 +190,7 @@ iso_path_rhel9: "ISOs/rhel-9.6-x86_64-dvd.iso"
 vm_name_prefix: "Enawy-OCP-Test" (Change Per Your ENv)
 
 # Local user running Ansible (used for file paths)
-local_user: "saad" (Change Per Your User)
+local_user: "<your-user>" (Change Per Your User)
 ```
 
 VM definitions are also in `vars.yml` under the `vms:` list. Each entry defines a VM role, CPU, RAM, and disk sizes.
@@ -201,8 +201,8 @@ VM definitions are also in `vars.yml` under the `vms:` list. Each entry defines 
 
 **Step 1 — Create your vault password file:**
 ```bash
-echo "YourVaultPassword" > /home/saad/ocp-vcenter-ansible/.vault_pass
-chmod 600 /home/saad/ocp-vcenter-ansible/.vault_pass
+echo "YourVaultPassword" > /home/<your-user>/ocp-vcenter-ansible/.vault_pass
+chmod 600 /home/<your-user>/ocp-vcenter-ansible/.vault_pass
 ```
 
 **Step 2 — Create the encrypted vault:**
@@ -243,7 +243,7 @@ host_key_checking   = False
 retry_files_enabled = False
 stdout_callback     = debug
 collections_path    = ~/.ansible/collections
-vault_password_file = /home/saad/ocp-vcenter-ansible/.vault_pass
+vault_password_file = /home/<your-user>/ocp-vcenter-ansible/.vault_pass    # change per your name
 
 [ssh_connection]
 pipelining = True
@@ -590,7 +590,7 @@ ansible-galaxy collection install ansible.posix --force
 **Vault decryption error:**
 ```bash
 # Verify your vault password file contains the correct password
-cat /home/saad/ocp-vcenter-ansible/.vault_pass
+cat /home/<your-user>/ocp-vcenter-ansible/.vault_pass
 
 # Test decryption manually
 ansible-vault view vault.yml
