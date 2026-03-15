@@ -163,7 +163,7 @@ ocp-vcenter-ansible/
 │   └── worker.ign                     # Auto-generated ignition (backed up)
 │
 └── ocp-vms/
-    └── poweron_bootstrap.yml          # Power on Bootstrap VM
+    └── poweron_bootstrap.yml          # Power on Bootstrap VM (Beta Version)
 ```
 
 ---
@@ -176,21 +176,21 @@ Edit this file before running the playbook:
 
 ```yaml
 # vCenter connection
-vcenter_hostname: "10.20.20.200"
-vcenter_datacenter: "GTS_KSA"
-vcenter_datastore: "DATASTORE_4_HDD"
-esxi_hostname: "10.20.20.21"
-vcenter_folder: "/GTS_KSA/vm/NBE-OCP"
+vcenter_hostname: "10.20.20.200"  (Change Per Your ENv)
+vcenter_datacenter: "GTS_KSA"      (Change Per Your ENv)
+vcenter_datastore: "DATASTORE_4_HDD" (Change Per Your ENv)
+esxi_hostname: "10.20.20.21"   (Change Per Your ENv)
+vcenter_folder: "/GTS_KSA/vm/TEST-OCP"  (Change Per Your ENv)
 
 # ISO paths in the datastore
 iso_path: "ISOs/rhcos-4.20.12-x86_64-live-iso.x86_64.iso"
 iso_path_rhel9: "ISOs/rhel-9.6-x86_64-dvd.iso"
 
 # VM name prefix
-vm_name_prefix: "Enawy-OCP-Test"
+vm_name_prefix: "Enawy-OCP-Test" (Change Per Your ENv)
 
 # Local user running Ansible (used for file paths)
-local_user: "saad"
+local_user: "saad" (Change Per Your User)
 ```
 
 VM definitions are also in `vars.yml` under the `vms:` list. Each entry defines a VM role, CPU, RAM, and disk sizes.
@@ -255,7 +255,7 @@ pipelining = True
 
 ## VM Specifications
 
-All VMs are created from ISO — no templates required. VMs are created in the vCenter folder `NBE-OCP` under the configured datacenter.
+All VMs are created from ISO — no templates required. VMs are created in the vCenter folder `PRO-OCP` under the configured datacenter.
 
 | VM Name | Role | vCPU | RAM | Disk 1 | Disk 2 | OS |
 |---|---|---|---|---|---|---|
@@ -277,7 +277,7 @@ All VMs use:
 - Network adapter: `vmxnet3`
 - Disk type: `thin provisioned`
 - Firmware: `EFI` (Secure Boot disabled)
-- Hardware version: `20`
+- Hardware version: `20`  #VMware Version : VMware ESXi, 8.0.3, 24280767
 
 ---
 
@@ -290,7 +290,7 @@ The playbook runs in two plays: the first executes on **localhost** (Ansible con
 ### Play 1 — vCenter Provisioning (localhost)
 
 #### Phase 0 — Create VM Folder
-Creates the `NBE-OCP` VM folder in the vCenter datacenter if it does not already exist.
+Creates the `Pro-OCP` VM folder in the vCenter datacenter if it does not already exist.
 
 #### Phase 1 — Create All VMs
 Iterates over the `vms` list in `vars.yml` and creates each VM using `community.vmware.vmware_guest`. For each VM, the task:
@@ -339,7 +339,7 @@ Prepares the RHEL9 Bastion operating system:
 1. Stops and disables `firewalld` permanently.
 2. Sets SELinux to `permissive` mode.
 3. Adds the internal RHEL golden image host to `/etc/hosts`.
-4. Creates a local YUM/DNF repository file pointing to an internal mirror (BaseOS, AppStream, CodeReady, HA).
+4. Creates a local YUM/DNF repository file pointing to an internal mirror (BaseOS, AppStream, CodeReady, HA).  # if you don't Have a synced repo with Redhat | use redhat  Subscription before proceed 
 5. Runs `dnf update` to fully patch the system.
 6. Installs all required service packages:
    - `chrony` — NTP server
@@ -424,7 +424,7 @@ Generates the OCP cluster installation configuration:
 1. Skips entirely if ignition files are already present (idempotent).
 2. Loads the Bastion IP and network from `bastion_ip.txt`.
 3. Reads the `bastion_ssh_public_key` from the vault.
-4. Prompts for the OCP **base domain** (e.g., `nbe.gts`).
+4. Prompts for the OCP **base domain** (e.g., `bank.gts`).
 5. Prompts for the Red Hat **pull secret** (from console.redhat.com).
 6. Creates the `/opt/ocp-install/` directory on the Bastion.
 7. Renders `install-config.yaml.j2` into `/opt/ocp-install/install-config.yaml` using all collected facts.
@@ -502,7 +502,7 @@ The playbook pauses at several points to collect information. Below is a referen
 | 8 | `Enter domain name (e.g. ocp.gts)` | `ocp.gts` | DHCP configuration |
 | 9 | `Enter OCP cluster name (e.g. ocp)` | `ocp` | HAProxy / Keepalived |
 | 10 | `SSH key already exists. Overwrite? (yes/no)` | `yes` or `no` | SSH key generation (if key exists) |
-| 11 | `Enter base domain (e.g. nbe.gts)` | `nbe.gts` | OCP install-config |
+| 11 | `Enter base domain (e.g. bank.gts)` | `bank.gts` | OCP install-config |
 | 12 | `Paste your pull secret` | `{"auths":{...}}` | OCP install-config |
 
 > **Tip:** Have all values ready before running the playbook to avoid delays during interactive pauses.
