@@ -1,1 +1,4 @@
 ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
+
+on your ansible server copy the key to bastion 
+ssh-copy-id root@ip-of-bastion 
